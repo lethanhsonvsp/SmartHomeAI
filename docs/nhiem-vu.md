@@ -41,11 +41,17 @@ Camera RTSP → Python AI → Hub (ASP.NET Core) ⇄ MQTT ⇄ ESP32 ×2; Hub →
 C# / .NET 10: Hub, thiết bị, Automation, Habit. Blazor: giao diện. Python + OpenCV + mô hình AI: camera, tracking, hành động. Mosquitto: MQTT. PostgreSQL: lưu trữ. MATLAB: phân tích. Linux + systemd: chạy 24/7.
 
 ## Thứ tự làm
-Luồng lõi trước: camera → hành động → quyết định → P100 → lịch sử (dùng mô phỏng trong `sim/`). Học thói quen nâng cao sau.
-1. Mô phỏng `sim/` (ESP32, P100, camera phát lại) + topic MQTT
-2. NV05, NV08 (nền)
-3. NV02, NV04 theo SC01–SC11 bằng test
+Luồng lõi trước: camera → hành động → quyết định → P100 → lịch sử (dùng mô phỏng trong `sim/`). Học thói quen nâng cao sau. Phạm vi tối thiểu của đồ án: SC01–SC11; NV03 chỉ đề xuất ngưỡng.
+0. Hợp đồng dữ liệu: `docs/mqtt-topics.md`, ranh giới: Python chỉ quan sát, Hub giữ Occupancy (xong)
+1. Mô phỏng `sim/` (ESP32, P100, phát kịch bản) và Occupancy Engine trong Core, song song
+2. NV05 và NV08 mức tối thiểu (bảng cần thiết); bật ghi log cảm biến và lệnh điều khiển ngay từ đây (SC12, NV09 cần nhiều tuần dữ liệu)
+3. NV04 theo SC01–SC11 bằng test
 4. NV01 với video thật
 5. NV06, NV07
 6. NV03, NV09 (gồm SC12)
-7. NV10
+7. NV08 phần phân quyền, sao lưu; NV10
+
+Việc chạy song song, không chờ bước nào:
+- Ghi video thật (điện thoại đặt đúng góc camera dự kiến) để đánh giá nhận diện nằm sofa.
+- Thử nhanh điều khiển P100 qua LAN khi có thiết bị (nguy cơ firmware đổi giao thức); dự phòng: relay qua ESP32.
+- Đóng MQTT ẩn danh (`allow_anonymous`) và nâng gói Blazor dính cảnh báo NU1903 trước khi triển khai.
