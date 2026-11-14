@@ -23,9 +23,18 @@ Python AI chỉ **quan sát**, gửi sự kiện qua MQTT. Hub (C#) giữ trạn
 | `home/ai/livingroom/state` | AI → Hub | 1–2 Hz | `ai-state.json` |
 | `home/ai/livingroom/transition` | AI → Hub | khi có | `ai-transition.json` |
 | `home/ai/status` | AI → Hub | retained + LWT | `status.json` |
+| `home/alert/{id}` | Hub → mọi nơi | khi cảnh báo, không retained | chưa có schema |
+| `home/alert/{id}/cancel` | Hub → mọi nơi | khi hủy | chưa có schema |
 
 `{node}`: `esp1`, `esp2`. `{id}`: `light`, `fan`.
 `env`: SHT30 (nhiệt độ, độ ẩm) và BH1750 (lux). `door`: MC-38. Chưa gán ESP nào mang cảm biến nào; chốt khi có phần cứng.
+
+## Cảnh báo (Hub phát)
+`{id}` dạng `alert-N`, đếm lại từ 1 sau khi Hub khởi động lại.
+- `home/alert/{id}`: `{"ts","id","level":"first"|"reminder","devices_on":["light","fan"]}`. Mỗi lần phát, Hub cũng gửi `home/sensor/esp1/buzzer/set` với `on:true`.
+- `home/alert/{id}/cancel`: `{"ts","id","reason":"person_returned"|"devices_off"|"data_lost"}`. Hub gửi buzzer `on:false`.
+- Tự tắt thiết bị (mặc định tắt, bật bằng cấu hình `Alerts`): lệnh `home/device/{id}/set` với `source:"alert"`, `on:false`.
+- API: `GET /api/alerts`, `POST /api/alerts/{id}/feedback {"correct":bool}` (404 nếu id lạ).
 
 ## Giá trị cho phép
 - `zone`: `livingroom`, `sofa`, `door`, `other_exit`.
