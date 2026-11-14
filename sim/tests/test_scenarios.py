@@ -54,3 +54,30 @@ def test_p100_publishes_state_on_set():
         assert any(t == "home/device/fan/state" and v["on"] is True for t, v in got)
     finally:
         p.kill(); p.wait(); c.loop_stop()
+
+
+def test_play_waits_for_connack(monkeypatch):
+    import time as _t
+    from sim import player
+
+    class FakeClient:
+        ready_at = _t.monotonic() + 0.3
+        sent_early = False
+
+        def is_connected(self):
+            return _t.monotonic() >= self.ready_at
+
+        def disconnect(self):
+            pass
+
+    c = FakeClient()
+    monkeypatch.setattr(player, "connect", lambda *a, **k: c)
+
+    def fake_publish(cl, topic, payload, retain=False):
+        if not cl.is_connected():
+            cl.sent_early = True
+
+    monkeypatch.setattr(player, "publish", fake_publish)
+    monkeypatch.setattr(player, "build", lambda *a, **k: build("SC10")[:2])
+    player.play("SC10", speed=1000)
+    assert not c.sent_early

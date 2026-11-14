@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using SmartHomeAI.Core.Alerts;
@@ -265,5 +266,30 @@ public class AlertWiringTests
         var cmd = Assert.Single(bus.Sent, s => s.Payload.Contains("\"source\":\"alert\""));
         Assert.Equal("home/device/light/set", cmd.Topic);
         Assert.Contains("\"on\":false", cmd.Payload);
+    }
+}
+
+public class ConfigTests
+{
+    [Fact]
+    public void Occupancy_defaults_when_section_missing()
+    {
+        var o = HubConfig.Occupancy(new ConfigurationBuilder().Build());
+        Assert.Equal(TimeSpan.FromSeconds(30), o.VerifyAway);
+        Assert.Equal(TimeSpan.FromSeconds(10), o.StateStale);
+    }
+
+    [Fact]
+    public void Occupancy_binds_section()
+    {
+        var cfg = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Occupancy:VerifyAway"] = "00:00:05",
+            ["Occupancy:StateStale"] = "00:00:03",
+        }).Build();
+        var o = HubConfig.Occupancy(cfg);
+        Assert.Equal(TimeSpan.FromSeconds(5), o.VerifyAway);
+        Assert.Equal(TimeSpan.FromSeconds(3), o.StateStale);
+        Assert.Equal(["livingroom", "sofa"], o.RoomZones);
     }
 }

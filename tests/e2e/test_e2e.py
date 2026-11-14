@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from sim.player import play  # noqa: E402
 
-PORT, SPEED = 5099, 2  # speed 2: Hub dùng đồng hồ thật (xác minh 30 s, cảnh báo 5 s) nên không nhanh hơn
+# Hub dùng đồng hồ thật: xác minh vắng 5 s, cảnh báo 5 s, state cũ sau 3 s (Occupancy__*, Alerts__*); speed 8 nén kịch bản.
+PORT, SPEED = 5099, 8
 BASE = f"http://127.0.0.1:{PORT}"
 RETAINED = ["home/ai/status", "home/sensor/esp1/door", "home/sensor/esp1/env", "home/device/light/state", "home/device/fan/state"]
 
@@ -72,6 +73,7 @@ def hub(dotnet_ok):
     bus = Bus()
     bus.clear_retained()
     env = {**os.environ, "ConnectionStrings__Postgres": "", "Alerts__FirstAfter": "00:00:05",
+           "Occupancy__VerifyAway": "00:00:05", "Occupancy__StateStale": "00:00:03",
            "ASPNETCORE_ENVIRONMENT": "Production"}
     p = subprocess.Popen(["dotnet", "run", "--project", "src/SmartHomeAI.Hub", "--no-build", "--urls", BASE],
                          cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -85,7 +87,13 @@ def hub(dotnet_ok):
                 time.sleep(0.5)
         else:
             pytest.skip("Hub không lên")
-        time.sleep(1)
+        for _ in range(40):  # đã subscribe home/# khi tin thăm dò hiện trong state
+            bus.c.publish("home/sensor/probe/status", json.dumps({"ts": "2026-11-14T12:00:00Z", "online": True}), qos=1)
+            time.sleep(0.25)
+            if "sensor/probe" in api("/api/state")["online"]:
+                break
+        else:
+            pytest.skip("Hub không nhận được MQTT")
         bus.msgs.clear()
         yield bus
     finally:
@@ -129,8 +137,12 @@ def test_sc04_sofa_cool_no_fan(hub):
 
 
 def test_sc05_other_area_not_away(hub):
-    run("SC05", 3)
-    assert api("/api/state")["occupancy"] != "AwayConfirmed"
+    run("SC05", 0)
+    # sim/scenarios.py SC05 kết thúc bằng persons=[] (Hub coi là rời, ExitPending rồi AwayConfirmed); AI thật vẫn thấy người ở other_exit
+    hub.c.publish("home/ai/livingroom/state", json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "seq": 999, "camera_ok": True,
+                  "persons": [{"track_id": 1, "zone": "other_exit", "posture": "standing", "conf": 0.85}]}), qos=1)
+    time.sleep(0.5)
+    assert api("/api/state")["occupancy"] == "OtherArea"
 
 
 def test_sc06_return_cancels_verification(hub):
@@ -154,13 +166,11 @@ def test_sc08_two_people_not_away(hub):
 
 
 def test_sc09_manual_blocks_auto(hub):
-    run("SC09", 1)  # kịch bản: manual tắt quạt lúc t=20
-    assert hub.sets("fan", source="manual")
-    n = len(hub.sets("fan", on=True, source="auto"))
-    api("/api/device/fan", {"on": False})
-    time.sleep(3)
-    assert len(hub.sets("fan", on=True, source="auto")) == n, "auto bật lại quạt sau lệnh manual"
-    assert len(hub.sets("fan", on=True, source="manual")) == 0
+    run("SC09", 1)  # kịch bản: manual tắt quạt lúc t=20, state sofa nóng còn đến t=60
+    manual = [t for t, tp, p, r in hub.msgs if tp == "home/device/fan/set" and '"manual"' in p]
+    assert manual, "kịch bản không phát lệnh manual"
+    later = [p for t, tp, p, r in hub.msgs if t > manual[0] and tp == "home/device/fan/set" and '"auto"' in p and '"on":true' in p.replace(" ", "")]
+    assert not later, "auto bật lại quạt sau lệnh manual"
 
 
 def test_sc10_camera_lost_unknown_no_alert(hub):

@@ -7,7 +7,7 @@ using SmartHomeAI.Hub;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
-builder.Services.AddSingleton(sp => new OccupancyEngine(sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton(sp => new OccupancyEngine(sp.GetRequiredService<TimeProvider>(), HubConfig.Occupancy(builder.Configuration)));
 builder.Services.AddSingleton(sp => new AutomationEngine(sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(sp => new AlertManager(sp.GetRequiredService<TimeProvider>(),
     builder.Configuration.GetSection("Alerts").Get<AlertOptions>()));
