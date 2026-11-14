@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using SmartHomeAI.Core.Alerts;
 using SmartHomeAI.Core.Automation;
 using SmartHomeAI.Core.Occupancy;
 using SmartHomeAI.Hub;
@@ -20,6 +21,9 @@ class RecLog : IEventLog
     public void Command(DeviceSetMsg m) => Rows.Add("cmd");
     public void AiEvent(DateTimeOffset ts, string kind, string json) => Rows.Add("ai:" + kind);
     public void Occupancy(DateTimeOffset ts, string state) => Rows.Add("occ:" + state);
+    public void AlertRaised(string id, DateTimeOffset ts) => Rows.Add("alert+" + id);
+    public void AlertCancelled(string id, DateTimeOffset ts, string reason) => Rows.Add("alert-" + id + ":" + reason);
+    public void AlertFeedback(string id, bool correct) => Rows.Add("fb:" + id + ":" + correct);
 }
 
 public class ParserTests
@@ -69,7 +73,7 @@ public class RouterTests
     {
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
         var log = new RecLog();
-        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time));
+        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
         var r = new MessageRouter(state, log, time, NullLogger<MessageRouter>.Instance, new FakeBus());
         const string ts = "\"ts\":\"2026-11-14T12:00:00Z\"";
 
@@ -106,7 +110,7 @@ public class AutomationWiringTests
 
     public AutomationWiringTests()
     {
-        state = new HubState(new OccupancyEngine(time), new AutomationEngine(time));
+        state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
         r = new MessageRouter(state, log, time, NullLogger<MessageRouter>.Instance, bus);
         r.Handle("home/ai/status", "{" + Ts + ",\"online\":true}");
         r.Handle("home/device/light/state", "{" + Ts + ",\"on\":false}");
@@ -159,5 +163,95 @@ public class AutomationWiringTests
         Assert.DoesNotContain("cmd", log.Rows);
         r.Handle(topic, payload);
         Assert.Contains("cmd", log.Rows);
+    }
+}
+
+public class AlertWiringTests
+{
+    const string Ts = "\"ts\":\"2026-11-14T12:00:00Z\"";
+    readonly FakeTimeProvider time = new(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
+    readonly FakeBus bus = new();
+    readonly RecLog log = new();
+
+    MessageRouter Make(AlertOptions? o = null, AlertWiring? w = null)
+    {
+        var r = new MessageRouter(new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time, o)),
+            log, time, NullLogger<MessageRouter>.Instance, bus, w);
+        r.Handle("home/ai/status", "{" + Ts + ",\"online\":true}");
+        r.Handle("home/device/light/state", "{" + Ts + ",\"on\":true}");
+        r.Handle("home/device/fan/state", "{" + Ts + ",\"on\":true}");
+        return r;
+    }
+
+    // Person walks out the door, then nobody is seen: ExitPending, then AwayConfirmed after VerifyAway.
+    void Away(MessageRouter r)
+    {
+        r.Handle("home/ai/livingroom/state", "{" + Ts + ",\"seq\":1,\"camera_ok\":true,\"persons\":[{\"track_id\":1,\"zone\":\"door\",\"posture\":\"moving\",\"conf\":0.9}]}");
+        r.Handle("home/ai/livingroom/transition", "{" + Ts + ",\"track_id\":1,\"from_zone\":\"livingroom\",\"to_zone\":\"door\",\"direction\":\"out\",\"conf\":0.9}");
+        r.Handle("home/ai/livingroom/state", "{" + Ts + ",\"seq\":2,\"camera_ok\":true,\"persons\":[]}");
+    }
+
+    // Advances in 1 s ticks, keeping AI data fresh with empty-room frames.
+    void Run(MessageRouter r, int seconds)
+    {
+        for (var i = 0; i < seconds; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            r.Handle("home/ai/livingroom/state", "{" + Ts + ",\"seq\":3,\"camera_ok\":true,\"persons\":[]}");
+            r.Tick();
+        }
+    }
+
+    [Fact]
+    public void Away_raises_then_reminds_then_return_cancels_and_buzzer_off()
+    {
+        var r = Make();
+        Away(r);
+        Run(r, 200);
+        var first = bus.Sent.Where(s => s.Topic == "home/alert/alert-1").ToList();
+        Assert.Single(first);
+        Assert.Contains("\"level\":\"first\"", first[0].Payload);
+        Assert.Contains("\"devices_on\":[\"light\",\"fan\"]", first[0].Payload);
+        Assert.Contains("\"on\":true", bus.Sent.Last(s => s.Topic == "home/sensor/esp1/buzzer/set").Payload);
+        Assert.Contains("alert+alert-1", log.Rows);
+
+        Run(r, 320);
+        Assert.Contains("\"level\":\"reminder\"", bus.Sent.Last(s => s.Topic == "home/alert/alert-1").Payload);
+
+        r.Handle("home/ai/livingroom/state", "{" + Ts + ",\"seq\":9,\"camera_ok\":true,\"persons\":[{\"track_id\":2,\"zone\":\"livingroom\",\"posture\":\"standing\",\"conf\":0.9}]}");
+        Assert.Contains(bus.Sent, s => s.Topic == "home/alert/alert-1/cancel" && s.Payload.Contains("person_returned"));
+        Assert.Contains("\"on\":false", bus.Sent.Last(s => s.Topic == "home/sensor/esp1/buzzer/set").Payload);
+        Assert.Contains("alert-alert-1:person_returned", log.Rows);
+    }
+
+    [Fact]
+    public void Feedback_known_id_ok_unknown_false()
+    {
+        var r = Make();
+        Away(r);
+        Run(r, 200);
+        Assert.True(r.Feedback("alert-1", true));
+        Assert.Contains("fb:alert-1:True", log.Rows);
+        Assert.False(r.Feedback("alert-99", true));
+    }
+
+    [Fact]
+    public void AutoOff_disabled_by_default_sends_nothing()
+    {
+        var r = Make(w: new AlertWiring(["light", "fan"]));
+        Away(r);
+        Run(r, 700);
+        Assert.DoesNotContain(bus.Sent, s => s.Payload.Contains("\"source\":\"alert\""));
+    }
+
+    [Fact]
+    public void AutoOff_enabled_turns_off_only_allowed_devices()
+    {
+        var r = Make(new AlertOptions { AutoOffEnabled = true }, new AlertWiring(["light"]));
+        Away(r);
+        Run(r, 700);
+        var cmd = Assert.Single(bus.Sent, s => s.Payload.Contains("\"source\":\"alert\""));
+        Assert.Equal("home/device/light/set", cmd.Topic);
+        Assert.Contains("\"on\":false", cmd.Payload);
     }
 }

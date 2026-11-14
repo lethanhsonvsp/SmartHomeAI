@@ -1,3 +1,4 @@
+using SmartHomeAI.Core.Alerts;
 using SmartHomeAI.Core.Automation;
 using SmartHomeAI.Core.Occupancy;
 
@@ -7,7 +8,7 @@ public record EnvReading(DateTimeOffset Ts, double TempC, double Humidity, doubl
 public record DeviceReading(DateTimeOffset Ts, bool On);
 
 /// <summary>Latest-value store; one lock guards it and the (non-thread-safe) OccupancyEngine.</summary>
-public class HubState(OccupancyEngine engine, AutomationEngine automation)
+public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts)
 {
     readonly object _gate = new();
     readonly Dictionary<string, EnvReading> _env = [];
@@ -53,6 +54,19 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation)
             return automation.Evaluate(new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan")));
         }
     }
+
+    /// <summary>Runs the alert rules on the current state (call every tick and after each message).</summary>
+    public IReadOnlyList<AlertAction> EvaluateAlerts(IReadOnlyCollection<string> autoOffAllowed)
+    {
+        lock (_gate)
+        {
+            bool On(string id) => _devices.TryGetValue(id, out var d) && d.On;
+            return alerts.Evaluate(new(engine.State, On("light"), On("fan"), autoOffAllowed));
+        }
+    }
+
+    public IReadOnlyList<AlertRecord> AlertHistory() { lock (_gate) return [.. alerts.History]; }
+    public bool AlertFeedback(string id, bool correct) { lock (_gate) return alerts.OnUserFeedback(id, correct); }
 
     OccupancyState? Changed()
     {

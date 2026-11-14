@@ -11,6 +11,9 @@ public interface IEventLog
     void Command(DeviceSetMsg m);
     void AiEvent(DateTimeOffset ts, string kind, string json);
     void Occupancy(DateTimeOffset ts, string state);
+    void AlertRaised(string id, DateTimeOffset ts);
+    void AlertCancelled(string id, DateTimeOffset ts, string reason);
+    void AlertFeedback(string id, bool correct);
 }
 
 public class NullEventLog : IEventLog
@@ -20,6 +23,9 @@ public class NullEventLog : IEventLog
     public void Command(DeviceSetMsg m) { }
     public void AiEvent(DateTimeOffset ts, string kind, string json) { }
     public void Occupancy(DateTimeOffset ts, string state) { }
+    public void AlertRaised(string id, DateTimeOffset ts) { }
+    public void AlertCancelled(string id, DateTimeOffset ts, string reason) { }
+    public void AlertFeedback(string id, bool correct) { }
 }
 
 /// <summary>Queues writes and runs them on a background loop so MQTT handling never waits on PostgreSQL.
@@ -48,6 +54,14 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
     public void AiEvent(DateTimeOffset ts, string kind, string json) => Enqueue("INSERT INTO ai_event(ts,kind,payload) VALUES(@ts,@k,@p)",
         Ts(ts), S("k", kind), P("p", json, NpgsqlDbType.Jsonb));
     public void Occupancy(DateTimeOffset ts, string state) => Enqueue("INSERT INTO occupancy_log(ts,state) VALUES(@ts,@s)", Ts(ts), S("s", state));
+
+    // shortcut: ids restart at alert-1 after a Hub restart; updates hit the newest row of that id, upgrade to a uuid when history must survive restarts exactly.
+    const string Latest = " WHERE id=@i AND raised_at=(SELECT max(raised_at) FROM alert_log WHERE id=@i)";
+    public void AlertRaised(string id, DateTimeOffset ts) => Enqueue("INSERT INTO alert_log(id,raised_at) VALUES(@i,@ts)", S("i", id), Ts(ts));
+    public void AlertCancelled(string id, DateTimeOffset ts, string reason) =>
+        Enqueue("UPDATE alert_log SET cancelled_at=@ts, reason=@r" + Latest, S("i", id), Ts(ts), S("r", reason));
+    public void AlertFeedback(string id, bool correct) =>
+        Enqueue("UPDATE alert_log SET feedback=@f" + Latest, S("i", id), S("f", correct ? "correct" : "wrong"));
 
     async Task<bool> InitAsync(CancellationToken ct)
     {
