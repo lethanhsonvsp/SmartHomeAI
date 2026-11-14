@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,"required":["ts","temp_c","humidity","lux"],"properties":{"ts":{"type":"string","format":"date-time"},"temp_c":{"type":"number"},"humidity":{"type":"number","minimum":0,"maximum":100},"lux":{"type":"number","minimum":0}}}
