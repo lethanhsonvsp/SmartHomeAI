@@ -8,6 +8,7 @@
 @inject SmartHomeAI.Dashboard.Services.AiRunner Ai
 @inject SmartHomeAI.Dashboard.Services.SimRunner Sim
 @inject SmartHomeAI.Dashboard.Services.AiApi AiApi
+@inject SmartHomeAI.Dashboard.Services.ScenarioRunner Scn
 
 <PageTitle>SmartHomeAI</PageTitle>
 
@@ -176,6 +177,51 @@
                 <label class="switch"><input type="checkbox" checked="@Sim.Plug.On" @onchange="e => ToggleSim(Sim.Plug, e.Value is true)" /><span class="slider"></span></label>
             </div>
             @if (Sim.Plug.Error is { } pe) { <p class="err">@pe</p> }
+            <div class="scn">
+                <h3>Kịch bản</h3>
+                @if (Scn.ListError is { } le) { <p class="err">@le</p><button class="btn" @onclick="() => Scn.Reload()">Tải lại danh sách</button> }
+                else if (Scn.List.Count == 0) { <p class="muted">Chưa có kịch bản</p> }
+                else
+                {
+                    <div class="scn-list" role="listbox">
+                        @foreach (var sc in Scn.List)
+                        {
+                            var cc = sc.Code;
+                            <button class="btn @(_scn == cc ? "on" : "")" role="option" aria-selected="@(_scn == cc)" @onclick="() => _scn = cc"><b>@cc</b> @sc.Title</button>
+                        }
+                    </div>
+                    @if (Scn.List.FirstOrDefault(x => x.Code == _scn) is { } cur)
+                    {
+                        <div class="scn-info">
+                            @if (cur.Description is { Length: > 0 }) { <p>@cur.Description</p> }
+                            @if (cur.Expect.Length > 0) { <small>Kỳ vọng:</small><ul>@foreach (var x in cur.Expect) { <li>@x</li> }</ul> }
+                            <small>Thời lượng gốc @cur.DurationSec.ToString("0") giây@(cur.Requires.Length > 0 ? ", cần: " + string.Join(", ", cur.Requires.Select(r => r == "p100" ? "ổ cắm giả" : r == "esp" ? "ESP32 giả" : r)) : "")</small>
+                        </div>
+                    }
+                    <div class="seg scn-speed">
+                        @foreach (var sp in SmartHomeAI.Dashboard.Services.ScenarioRunner.Speeds)
+                        {
+                            var ss = sp;
+                            <button class="btn @(_spd == ss ? "on" : "")" disabled="@Scn.Running" @onclick="() => _spd = ss">@(ss)x</button>
+                        }
+                    </div>
+                    <div class="scn-act">
+                        <button class="btn on" disabled="@(Scn.Running || _scn is null || ScnBlock is not null)" @onclick="RunScn">Chạy</button>
+                        <button class="btn" disabled="@(!Scn.Running)" @onclick="() => Scn.Stop()">Dừng</button>
+                    </div>
+                    @if (ScnBlock is { } sb) { <p class="err">@sb</p> }
+                    @if (Scn.State != SmartHomeAI.Dashboard.Services.ScenarioState.Idle || Scn.Code is not null)
+                    {
+                        <p><b class="@(Scn.State == SmartHomeAI.Dashboard.Services.ScenarioState.Error ? "err" : "")">@Scn.Code: @(Scn.State switch { SmartHomeAI.Dashboard.Services.ScenarioState.Running => "Đang chạy", SmartHomeAI.Dashboard.Services.ScenarioState.Done => "Xong", SmartHomeAI.Dashboard.Services.ScenarioState.Error => "Lỗi", _ => "Đã dừng" })</b>
+                            <small>(ước tính @Scn.EstSec.ToString("0") giây)</small></p>
+                        <progress class="scn-bar" max="1" value="@Scn.Progress.ToString("0.00", Inv)"></progress>
+                        @if (Scn.Error is { } se) { <p class="err">@se</p> }
+                        @if (Scn.LogTail.Length > 0) { <pre class="logtail">@string.Join("\n", Scn.LogTail)</pre> }
+                        <small>Phản ứng của Hub:</small>
+                        @foreach (var x in (_ev ?? []).Take(5)) { <div class="ev k-@x.Kind"><small>@x.Ts.ToLocalTime().ToString("HH:mm:ss")</small><span class="ic" aria-hidden="true">@Icon(x.Kind)</span><span>@x.Message</span></div> }
+                    }
+                }
+            </div>
             @if (Sim.Esp.On)
             {
                 @if (_esp is null) { <p class="muted">Đang chờ cổng điều khiển ESP32 giả...</p> }
@@ -241,6 +287,9 @@
     string? _msg;
     string _tab = "ov";
     bool _simOpen;
+    string? _scn; int _spd = 20, _per = 2000;
+    string? ScnBlock => Scn.AiBlocks ? "Tắt AI camera trước (kịch bản và camera cùng gửi dữ liệu người)" : _s is null ? "Hub chưa online" : null;
+    async Task RunScn() { if (_scn is not null && await Scn.Run(_scn, _spd) is { } m) _msg = m; }
     long _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     SmartHomeAI.Dashboard.Services.AiState _lastAi;
     Timer? _t;
@@ -268,7 +317,14 @@
     {
         _lastAi = Ai.State;
         await Refresh();
-        _t = new Timer(async _ => { await Refresh(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
+        if (Scn.List.Count == 0) _ = Scn.Reload();
+        _t = new Timer(async _ =>
+        {
+            await Refresh(); await InvokeAsync(StateHasChanged);
+            // Nhanh hơn (1 giây) khi có kịch bản chạy để thấy phản ứng của Hub.
+            var want = Scn.Running ? 1000 : 2000;
+            if (want != _per) { _per = want; _t?.Change(want, want); }
+        }, null, 2000, 2000);
     }
 
     async Task Refresh()

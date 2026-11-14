@@ -9,6 +9,8 @@ Bố cục vừa khít màn hình, không cuộn trang (điện thoại dọc d�
 
 Ổ cắm giả tự bật khi Dashboard khởi động (`Sim:AutoStartPlug`, mặc định true; `Sim:AutoStartEsp`, mặc định false) và tự dọn khi tắt. Nếu Hub báo ổ cắm chưa online, ô Đèn / quạt trần hiện cảnh báo kèm nút bật mô phỏng; bấm Bật/Tắt mà sau 3 giây trạng thái không đổi thì hiện "Chưa thấy thiết bị phản hồi".
 
+Ô "Kịch bản" (trong ngăn/tab Mô phỏng): danh sách lấy từ `python -m sim list --json` (lệnh ở `Sim:ListArgs`, tải một lần khi mở trang, có nút tải lại khi lỗi). Chọn mã để xem mô tả và kỳ vọng, chọn tốc độ 1x/5x/20x/60x, bấm Chạy (`python -m sim run CODE --speed N`) hoặc Dừng. Mã phải khớp `^[A-Z]{1,2}[0-9]{2}$` và nằm trong danh sách đã lấy, tốc độ chỉ nhận bốn mức trên; chỉ một kịch bản chạy một lúc; Dashboard tắt thì tiến trình kịch bản bị dừng. Thanh tiến độ là ước tính (thời lượng/tốc độ), kèm trạng thái Đang chạy/Xong/Lỗi, vài dòng log cuối và 5 dòng nhật ký Hub mới nhất. Nút Chạy bị khóa khi AI camera đang chạy ("Tắt AI camera trước...") hoặc Hub chưa online; kịch bản có `requires` p100/esp thì tự bật ổ cắm giả/ESP32 giả trước. Trong lúc chạy trang làm mới mỗi 1 giây thay vì 2 giây.
+
 Chạy: `dotnet run --project src/SmartHomeAI.Dashboard/SmartHomeAI.Dashboard` (mở http://localhost:5037).
 Dashboard tự bật Mosquitto (docker compose, nếu 1883 chưa mở) và Hub (nếu `{Hub:BaseUrl}/health` không đáp); khi tắt Dashboard chỉ dừng tiến trình nó đã tạo.
 Công tắc trên khung camera bật/tắt `ai/run.sh`. Lệnh chạy chỉ lấy từ `appsettings.json` (mục `Hub`, `Ai`, `Startup`, `Repo`), không nhận lệnh từ trình duyệt.

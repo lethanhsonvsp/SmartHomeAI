@@ -21,6 +21,8 @@ builder.Services.AddSingleton<AiRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AiRunner>());
 builder.Services.AddSingleton<AiApi>();
 builder.Services.AddSingleton<SimRunner>();
+builder.Services.AddSingleton<ScenarioRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ScenarioRunner>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SimRunner>());
 var app = builder.Build();
 
