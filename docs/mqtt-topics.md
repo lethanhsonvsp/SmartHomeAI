@@ -26,7 +26,7 @@ Python AI chỉ **quan sát**, gửi sự kiện qua MQTT. Hub (C#) giữ trạn
 | `home/alert/{id}` | Hub → mọi nơi | khi cảnh báo, không retained | chưa có schema |
 | `home/alert/{id}/cancel` | Hub → mọi nơi | khi hủy | chưa có schema |
 
-`{node}`: `esp1`, `esp2`. `{id}`: `light`, `fan`.
+`{node}`: `esp1`, `esp2`. `{id}`: `light` (đèn), `fan` (quạt trần, treo trên trần phòng khách, không phải quạt đứng; thiết bị cắm qua ổ P100).
 `env`: SHT30 (nhiệt độ, độ ẩm) và BH1750 (lux). `door`: MC-38. Chưa gán ESP nào mang cảm biến nào; chốt khi có phần cứng.
 
 ## Cảnh báo (Hub phát)

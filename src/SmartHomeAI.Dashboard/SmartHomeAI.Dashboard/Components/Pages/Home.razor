@@ -98,7 +98,7 @@
     </section>
 
     <section class="pane devs p-ov">
-        <h3>Đèn / quạt</h3>
+        <h3>Đèn / quạt trần</h3>
         @foreach (var (id, name) in Devs)
         {
             var on = _s is not null && _s.Devices.TryGetValue(id, out var dv) && dv.On;
@@ -152,7 +152,7 @@
             </div>
             @if (Sim.Esp.Error is { } ee) { <p class="err">@ee</p> }
             <div class="devrow">
-                <span>Mô phỏng ổ cắm (đèn, quạt): <b>@(Sim.Plug.On ? "đang chạy" : "tắt")</b></span>
+                <span>Mô phỏng ổ cắm (đèn, quạt trần): <b>@(Sim.Plug.On ? "đang chạy" : "tắt")</b></span>
                 <label class="switch"><input type="checkbox" checked="@Sim.Plug.On" @onchange="e => ToggleSim(Sim.Plug, e.Value is true)" /><span class="slider"></span></label>
             </div>
             @if (Sim.Plug.Error is { } pe) { <p class="err">@pe</p> }
@@ -184,7 +184,7 @@
 </div>
 
 @code {
-    static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt")];
+    static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt trần")];
     static readonly (string, string)[] Ovl = [("skeleton", "Khung xương"), ("boxes", "Hộp"), ("labels", "Nhãn"), ("zones", "Vùng")];
     Dictionary<string, bool>? _cfg;
     static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("ch", "Biểu đồ"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
