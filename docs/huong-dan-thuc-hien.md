@@ -86,6 +86,17 @@ Làm lần lượt, mỗi thiết bị một lần, thay đúng phần mô phỏ
 
 ## 6. Tình trạng hiện tại
 
-Xong: khung dự án, hợp đồng MQTT, mô phỏng, Occupancy Engine, Automation Engine, Hub nhận MQTT, `GET /api/state` và ghi log PostgreSQL. Automation chưa nối vào Hub (Hub chưa tự gửi lệnh nào). Chưa có: AI camera, cảnh báo, Dashboard, học thói quen, MATLAB, bảo mật, triển khai. Danh sách đầy đủ ở `docs/nhiem-vu.md`.
+Xong và có test: khung dự án, hợp đồng MQTT, mô phỏng, Occupancy Engine, Automation Engine, Alert Manager, Habit Engine (học luật từ lần bật tay, chưa nối Hub), Hub (MQTT, `/api/state`, `/api/alerts`, điều khiển, log PostgreSQL), Dashboard tối thiểu, khung AI camera (HOG baseline), kiểm thử đầu-cuối SC01–SC11 (`tests/e2e`, khoảng 3 phút), bảo mật MQTT và khóa API (profile `secure`), xuất CSV và script MATLAB.
 
-Lưu ý khi chạy Hub: `dotnet run` dùng cổng trong `launchSettings.json` (5002), không phải `ASPNETCORE_URLS`. Chuỗi kết nối PostgreSQL mặc định trỏ cổng 5432; máy đã có PostgreSQL khác thì ghi đè bằng biến môi trường `ConnectionStrings__Postgres`.
+Chưa có hoặc chưa kiểm:
+- Phần cứng thật (ESP32, P100, C222) và video thật: độ chính xác nhận diện chưa đo được.
+- Habit Engine chưa nối Hub và Dashboard (duyệt luật, lưu DB).
+- Script MATLAB chưa chạy thử (máy chưa có MATLAB hay Octave); `export_csv.py` chưa thử với PostgreSQL thật.
+- Dashboard: chưa có biểu đồ, cấu hình ngưỡng, xem camera, thói quen.
+- Triển khai systemd chưa chạy thử; MQTT bảo mật chưa thử với Hub thật.
+
+Lưu ý khi chạy Hub: `dotnet run` dùng cổng trong `launchSettings.json` (5002), không phải `ASPNETCORE_URLS`. Chuỗi kết nối PostgreSQL mặc định trỏ cổng 5432; máy đã có PostgreSQL khác thì đặt `POSTGRES_PORT` cho compose và ghi đè `ConnectionStrings__Postgres`.
+
+Bật bảo mật: sao `.env.example` thành `.env`, điền mật khẩu, chạy `infra/mosquitto/make-passwd.sh`, rồi `docker compose --profile secure up -d mosquitto-secure` (cổng 1884). Hub dùng `Mqtt__User`, `Mqtt__Password`, `Api__Key`; sim và ai dùng `--user`, `--password`.
+
+Thời gian trong Hub (xác minh vắng, quá hạn dữ liệu, cảnh báo) cấu hình ở mục `Occupancy` và `Alerts` của `appsettings.json`. Các con số mặc định là giá trị tạm, chỉnh theo dữ liệu thật.
