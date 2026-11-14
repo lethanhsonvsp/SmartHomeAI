@@ -19,6 +19,8 @@ builder.Services.AddSingleton<HubLauncher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HubLauncher>());
 builder.Services.AddSingleton<AiRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AiRunner>());
+builder.Services.AddSingleton<SimRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SimRunner>());
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

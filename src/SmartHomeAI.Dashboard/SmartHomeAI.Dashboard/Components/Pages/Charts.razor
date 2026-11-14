@@ -1,0 +1,67 @@
+@using System.Globalization
+@* Biểu đồ SVG thuần: đường vẽ trong SVG kéo giãn (nét không giãn), chữ là HTML nên không méo. *@
+<div class="charts">
+    @if (H is null) { <p class="muted">Chưa có lịch sử từ Hub</p> }
+    else
+    {
+        var T1 = DateTimeOffset.UtcNow; var T0 = T1.AddMinutes(-Minutes);
+        var env = Cut(H.Env, e => e.Ts, T0);
+        var occ = Cut(H.Occupancy, e => e.Ts, T0);
+        var per = Cut(H.Persons, e => e.Ts, T0);
+        var last = env.Count > 0 ? env[^1] : null;
+        var tmin = env.Count > 0 ? Math.Floor(env.Min(e => e.TempC)) - 1 : 0;
+        var tmax = env.Count > 0 ? Math.Ceiling(env.Max(e => e.TempC)) + 1 : 40;
+        var lmax = Math.Max(100, env.Count > 0 ? Math.Ceiling(env.Max(e => e.Lux) / 100) * 100 : 100);
+        var pmax = Math.Max(2, per.Count > 0 ? per.Max(p => p.Count) : 2);
+        <div class="ch">
+            <div class="chl"><span class="k t">Nhiệt độ @(last is null ? "" : F(last.TempC) + " °C")</span><span class="k h">Độ ẩm @(last is null ? "" : F(last.Humidity) + " %")</span><span class="rng">@tmin–@tmax °C · 0–100 %</span></div>
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" role="img" aria-label="Nhiệt độ và độ ẩm">
+                <polyline class="ln t" points="@Pts(env, e => e.Ts, e => e.TempC, tmin, tmax, T0, T1)" />
+                <polyline class="ln h" points="@Pts(env, e => e.Ts, e => e.Humidity, 0, 100, T0, T1)" />
+            </svg>
+        </div>
+        <div class="ch">
+            <div class="chl"><span class="k l">Ánh sáng @(last is null ? "" : F(last.Lux) + " lux")</span><span class="rng">0–@lmax lux</span></div>
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" role="img" aria-label="Ánh sáng">
+                <polyline class="ln l" points="@Pts(env, e => e.Ts, e => e.Lux, 0, lmax, T0, T1)" />
+            </svg>
+        </div>
+        <div class="ch">
+            <div class="chl"><span class="k p">Hiện diện / số người @(per.Count > 0 ? per[^1].Count + " người" : "")</span><span class="rng">0–@pmax người</span></div>
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" role="img" aria-label="Hiện diện và số người">
+                @for (var i = 0; i < occ.Count; i++)
+                {
+                    var x0 = X(occ[i].Ts, T0, T1); var x1 = i + 1 < occ.Count ? X(occ[i + 1].Ts, T0, T1) : 1000.0;
+                    <rect class="occ-@occ[i].State" x="@F(x0)" y="0" width="@F(Math.Max(x1 - x0, 0))" height="100" />
+                }
+                <polyline class="ln p" points="@Pts(per, e => e.Ts, e => e.Count, 0, pmax, T0, T1)" />
+            </svg>
+        </div>
+        <div class="axis">
+            @for (var i = 0; i <= 4; i++)
+            {
+                var t = T0.AddMinutes(Minutes * i / 4.0).ToLocalTime();
+                <span style="left:@(i * 25)%">@t.ToString("HH:mm")</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public History? H { get; set; }
+    [Parameter] public int Minutes { get; set; } = 360;
+
+    static string F(double v) => v.ToString("0.#", CultureInfo.InvariantCulture);
+    static double X(DateTimeOffset t, DateTimeOffset t0, DateTimeOffset t1) => Math.Clamp((t - t0) / (t1 - t0), 0, 1) * 1000;
+
+    // Giữ tối đa ~300 điểm trong cửa sổ để SVG nhẹ.
+    static List<T> Cut<T>(List<T>? src, Func<T, DateTimeOffset> ts, DateTimeOffset t0)
+    {
+        var l = (src ?? []).Where(x => ts(x) >= t0).ToList();
+        var step = Math.Max(1, l.Count / 300);
+        return step == 1 ? l : l.Where((_, i) => i % step == 0 || i == l.Count - 1).ToList();
+    }
+
+    static string Pts<T>(List<T> l, Func<T, DateTimeOffset> ts, Func<T, double> v, double lo, double hi, DateTimeOffset t0, DateTimeOffset t1) =>
+        string.Join(' ', l.Select(x => $"{F(X(ts(x), t0, t1))},{F(100 - Math.Clamp((v(x) - lo) / Math.Max(hi - lo, 1e-9), 0, 1) * 96 - 2)}"));
+}

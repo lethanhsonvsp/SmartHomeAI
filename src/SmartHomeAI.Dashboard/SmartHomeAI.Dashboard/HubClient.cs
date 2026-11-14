@@ -16,6 +16,12 @@ public record AlertItem(string Id,
     [property: JsonPropertyName("cancelled_at")] DateTimeOffset? CancelledAt,
     string? Reason, string Feedback);
 
+public record EnvPt(DateTimeOffset Ts, double TempC, double Humidity, double Lux);
+public record OccPt(DateTimeOffset Ts, string State);
+public record PersonPt(DateTimeOffset Ts, int Count);
+public record EspState(double TempC, double Humidity, double Lux, bool DoorOpen, bool Buzzer);
+public record History(List<EnvPt> Env, List<OccPt> Occupancy, List<PersonPt> Persons);
+
 /// <summary>Server-side client for the Hub REST API; null/false results mean Hub unreachable or failed.</summary>
 public class HubClient(HttpClient http)
 {
@@ -33,6 +39,7 @@ public class HubClient(HttpClient http)
 
     public Task<HubSnapshot?> State() => Get<HubSnapshot>("/api/state");
     public Task<List<AlertItem>?> Alerts() => Get<List<AlertItem>>("/api/alerts");
+    public Task<History?> History(int minutes) => Get<History>($"/api/history?minutes={minutes}");
     public Task<bool> SetMode(bool auto) => Post("/api/mode", new { auto });
     public Task<bool> SetDevice(string id, bool on) => Post($"/api/device/{id}", new { on });
     public Task<bool> Feedback(string id, bool correct) => Post($"/api/alerts/{Uri.EscapeDataString(id)}/feedback", new { correct });

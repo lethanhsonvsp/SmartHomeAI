@@ -6,77 +6,69 @@
 @inject NavigationManager Nav
 @inject SmartHomeAI.Dashboard.Services.HubLauncher Launcher
 @inject SmartHomeAI.Dashboard.Services.AiRunner Ai
+@inject SmartHomeAI.Dashboard.Services.SimRunner Sim
 
 <PageTitle>SmartHomeAI</PageTitle>
-<h1>Phòng khách</h1>
 
-<p class="hubline">Hub: <span class="dot @(HubUp ? "up" : "down")"></span>@HubText</p>
-
-@if (_s is null)
-{
-    <p class="err">Không kết nối được Hub</p>
-}
-else
-{
-    <div class="grid">
-        <div class="card occ @_s.Occupancy">
-            <h3>Hiện diện</h3>
-            <strong>@_s.Occupancy</strong> · @_s.PersonCount người
-            <p>@Note(_s.Occupancy)</p>
-        </div>
-        <div class="card">
-            <h3>Cảm biến</h3>
-            @foreach (var (node, e) in _s.Env)
+<div class="app" data-tab="@_tab">
+    <header class="status p-ov">
+        <span class="chip"><span class="dot @(HubUp ? "up" : "down")"></span>Hub <small>@HubText</small></span>
+        @if (_s is not null)
+        {
+            var e = _s.Env.Values.FirstOrDefault(); var d = _s.Door.Values.FirstOrDefault();
+            <span class="chip occ @_s.Occupancy" title="@Note(_s.Occupancy)">@OccVi(_s.Occupancy)</span>
+            <span class="chip">@_s.PersonCount người</span>
+            <span class="chip seg">
+                <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button><button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
+            </span>
+            @if (e is not null)
             {
-                <p>@node: @e.TempC.ToString("0.#") °C · @e.Humidity.ToString("0.#") % · @e.Lux.ToString("0") lux</p>
+                <span class="chip">🌡 @e.TempC.ToString("0.#") °C</span>
+                <span class="chip">💧 @e.Humidity.ToString("0.#") %</span>
+                <span class="chip">☀ @e.Lux.ToString("0") lux</span>
             }
-            @foreach (var (node, d) in _s.Door) { <p>Cửa @node: @(d.Open ? "Mở" : "Đóng")</p> }
-            @if (_s.Env.Count + _s.Door.Count == 0) { <p>Chưa có số liệu</p> }
-            @foreach (var (src, up) in _s.Online) { <small><span class="dot @(up ? "up" : "down")"></span>@src </small> }
-        </div>
-        <div class="card">
-            <h3>Đèn / quạt</h3>
-            <p>
-                <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button>
-                <button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
-            </p>
-            @foreach (var (id, name) in Devs)
-            {
-                var on = _s.Devices.TryGetValue(id, out var d) && d.On;
-                <p>@name: @(on ? "Đang bật" : "Đang tắt")
-                    <button class="btn" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button></p>
-            }
-        </div>
-    </div>
-}
+            @if (d is not null) { <span class="chip">Cửa: @(d.Open ? "Mở" : "Đóng")</span> }
+            @if (_s.Env.Count + _s.Door.Count == 0) { <span class="chip">Chưa có số liệu cảm biến</span> }
+        }
+        else { <span class="chip err">Không kết nối được Hub</span> }
+        @if (_msg is not null) { <span class="chip err">@_msg</span> }
+        <button class="btn simbtn" @onclick="() => _simOpen = !_simOpen">Mô phỏng</button>
+    </header>
 
-<div class="card">
-    <div class="camhead">
-        <h3>Camera</h3>
-        <label class="switch" title="Bật/tắt bộ AI">
-            <input type="checkbox" checked="@(Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting)"
-                   disabled="@Ai.Busy" @onchange="ToggleAi" />
-            <span class="slider"></span>
-        </label>
-        <span>AI: @AiText</span>
-    </div>
-    @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Error)
-    {
-        <pre class="err logtail">@string.Join("\n", Ai.LogTail)</pre>
-    }
-    <div class="cam-wrap">
-        <div class="cam-view">
-            @* JS thuần để Blazor re-render không đụng trạng thái hiện/ẩn của luồng. *@
-            <img id="cam-img" alt="Luồng camera" src="@Url" style="width:100%;display:block"
-                 onload="document.getElementById('cam-err').style.display='none'"
-                 onerror="this.style.display='none';document.getElementById('cam-err').style.display='block'" />
-            <div id="cam-err" style="display:none">
-                <p>Chưa có luồng camera. Bật công tắc AI ở trên.</p>
-                <button class="btn" onclick="var i=document.getElementById('cam-img');document.getElementById('cam-err').style.display='none';i.style.display='block';i.src='@Url'+'?t='+Date.now()">Thử lại</button>
+    <section class="pane cam p-cam">
+        <div class="head">
+            <h3>Camera</h3>
+            <label class="switch" title="Bật/tắt bộ AI">
+                <input type="checkbox" checked="@(Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting)"
+                       disabled="@Ai.Busy" @onchange="ToggleAi" />
+                <span class="slider"></span>
+            </label>
+            <span>AI: @AiText</span>
+        </div>
+        @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Error)
+        {
+            <pre class="err logtail">@string.Join("\n", Ai.LogTail)</pre>
+        }
+        <div class="cam-box">
+            <div class="cam-ph">
+                <p>@(Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running ? "Đang chờ luồng camera..." : "Camera tắt. Bật công tắc AI để xem.")</p>
+                @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running)
+                {
+                    <button class="btn" onclick="camRetry(document.getElementById('cam-img'), true)">Thử lại</button>
+                }
             </div>
+            @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running)
+            {
+                @* @key đổi mỗi lần AI vào Running: tạo lại thẻ img, nạp luồng mới. *@
+                <img @key="_camGen" id="cam-img" alt="Luồng camera" src="@(Url)?t=@_camGen" data-base="@Url" style="opacity:0"
+                     onload="this.style.opacity=1;this.dataset.n=0" onerror="camRetry(this)" />
+            }
         </div>
-        <div class="cam-side">
-            <h3>Đang thấy</h3>
+    </section>
+
+    <section class="pane people p-ov">
+        <h3>Đang thấy</h3>
+        <div class="scroll">
             @if (_s?.Persons is { Count: > 0 })
             {
                 <table>
@@ -89,45 +81,122 @@ else
                     </tbody>
                 </table>
             }
-            else { <p>Không thấy ai</p> }
+            else { <p class="muted">Không thấy ai</p> }
         </div>
-    </div>
-</div>
+    </section>
 
-<div class="card">
-    <h3>Cảnh báo</h3>
-    @if (_a is null) { <p class="err">Không kết nối được Hub</p> }
-    else if (_a.Count == 0) { <p>Chưa có cảnh báo</p> }
-    @foreach (var x in _a ?? [])
-    {
-        <div class="alert-row">
-            <small>@x.RaisedAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</small>
-            @(x.CancelledAt is null ? "Đang hiệu lực" : $"Đã hủy lúc {x.CancelledAt.Value.ToLocalTime():HH:mm:ss}: {Why(x.Reason)}")
-            · Phản hồi: @(x.Feedback switch { "Correct" => "Đúng", "Wrong" => "Sai", _ => "chưa có" })
-            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, true)">Đúng</button>
-            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, false)">Sai</button>
+    <section class="pane devs p-ov">
+        <h3>Đèn / quạt</h3>
+        @foreach (var (id, name) in Devs)
+        {
+            var on = _s is not null && _s.Devices.TryGetValue(id, out var dv) && dv.On;
+            <div class="devrow">
+                <span>@name: <b>@(on ? "bật" : "tắt")</b></span>
+                <button class="btn @(on ? "on" : "")" disabled="@(_s is null)" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button>
+            </div>
+        }
+    </section>
+
+    <section class="pane charts-pane p-ch">
+        <div class="head">
+            <h3>Biểu đồ</h3>
+            <span class="seg">
+                @foreach (var m in new[] { 15, 60, 360 })
+                {
+                    var mm = m;
+                    <button class="btn @(_min == mm ? "on" : "")" @onclick="() => SetMin(mm)">@(mm == 15 ? "15 phút" : mm == 60 ? "1 giờ" : "6 giờ")</button>
+                }
+            </span>
         </div>
-    }
+        <Charts H="_h" Minutes="_min" />
+    </section>
+
+    <section class="pane alerts p-al">
+        <h3>Cảnh báo</h3>
+        <div class="scroll">
+            @if (_a is null) { <p class="err">Không kết nối được Hub</p> }
+            else if (_a.Count == 0) { <p class="muted">Chưa có cảnh báo</p> }
+            @foreach (var x in _a ?? [])
+            {
+                <div class="alert-row">
+                    <small>@x.RaisedAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</small>
+                    @(x.CancelledAt is null ? "Đang hiệu lực" : $"Đã hủy lúc {x.CancelledAt.Value.ToLocalTime():HH:mm:ss}: {Why(x.Reason)}")
+                    · Phản hồi: @(x.Feedback switch { "Correct" => "Đúng", "Wrong" => "Sai", _ => "chưa có" })
+                    <span class="fb">
+                        <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, true)">Đúng</button>
+                        <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, false)">Sai</button>
+                    </span>
+                </div>
+            }
+        </div>
+    </section>
+
+    <aside class="pane simpane p-sim @(_simOpen ? "open" : "")">
+        <div class="head"><h3>Mô phỏng</h3><button class="btn simclose" @onclick="() => _simOpen = false">Đóng</button></div>
+        <div class="scroll">
+            <div class="devrow">
+                <span>Mô phỏng cảm biến (ESP32): <b>@(Sim.Esp.On ? "đang chạy" : "tắt")</b></span>
+                <label class="switch"><input type="checkbox" checked="@Sim.Esp.On" @onchange="e => ToggleSim(Sim.Esp, e.Value is true)" /><span class="slider"></span></label>
+            </div>
+            @if (Sim.Esp.Error is { } ee) { <p class="err">@ee</p> }
+            <div class="devrow">
+                <span>Mô phỏng ổ cắm (đèn, quạt): <b>@(Sim.Plug.On ? "đang chạy" : "tắt")</b></span>
+                <label class="switch"><input type="checkbox" checked="@Sim.Plug.On" @onchange="e => ToggleSim(Sim.Plug, e.Value is true)" /><span class="slider"></span></label>
+            </div>
+            @if (Sim.Plug.Error is { } pe) { <p class="err">@pe</p> }
+            @if (Sim.Esp.On)
+            {
+                @if (_esp is null) { <p class="muted">Đang chờ cổng điều khiển ESP32 giả...</p> }
+                else
+                {
+                    <div class="slide"><label for="s-t">Nhiệt độ: <b>@_esp.TempC.ToString("0.#") °C</b></label>
+                        <input id="s-t" type="range" min="-20" max="60" step="0.5" value="@_esp.TempC.ToString("0.#", Inv)" @onchange='e => Put("tempC", ParseD(e))' /></div>
+                    <div class="slide"><label for="s-h">Độ ẩm: <b>@_esp.Humidity.ToString("0.#") %</b></label>
+                        <input id="s-h" type="range" min="0" max="100" step="1" value="@_esp.Humidity.ToString("0.#", Inv)" @onchange='e => Put("humidity", ParseD(e))' /></div>
+                    <div class="slide"><label for="s-l">Ánh sáng: <b>@_esp.Lux.ToString("0") lux</b> (thang log, 0–2000)</label>
+                        <input id="s-l" type="range" min="0" max="1000" step="5" value="@LuxToPos(_esp.Lux)" @onchange='e => Put("lux", PosToLux(ParseD(e)))' /></div>
+                    <div class="devrow"><span>Cửa: <b>@(_esp.DoorOpen ? "mở" : "đóng")</b></span>
+                        <label class="switch"><input type="checkbox" checked="@_esp.DoorOpen" @onchange='e => Put("doorOpen", e.Value is true)' /><span class="slider"></span></label></div>
+                    <p>Còi buzzer: <b class="@(_esp.Buzzer ? "err" : "")">@(_esp.Buzzer ? "đang kêu" : "im")</b></p>
+                }
+            }
+        </div>
+    </aside>
+
+    <nav class="tabs" aria-label="Chuyển ô">
+        @foreach (var (k, n) in Tabs)
+        {
+            <button class="@(_tab == k ? "on" : "")" @onclick="() => _tab = k">@n</button>
+        }
+    </nav>
 </div>
-@if (_msg is not null) { <p class="err">@_msg</p> }
 
 @code {
     static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt")];
+    static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("ch", "Biểu đồ"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
+    static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
     HubSnapshot? _s;
     List<AlertItem>? _a;
+    History? _h;
+    EspState? _esp;
     string? _msg;
+    string _tab = "ov";
+    bool _simOpen;
+    int _min = 360, _tick;
+    long _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    SmartHomeAI.Dashboard.Services.AiState _lastAi;
     Timer? _t;
 
     // Luồng MJPEG do trình duyệt tải: "localhost" trong cấu hình đổi thành máy đang mở trang (điện thoại).
     string Url => (Cfg["Camera:StreamUrl"] ?? "http://localhost:8090/stream.mjpg").Replace("localhost", new Uri(Nav.Uri).Host);
     bool HubUp => Launcher.Status is not SmartHomeAI.Dashboard.Services.HubStatus.Failed && _s is not null;
     string HubText => _s is null && Launcher.Status != SmartHomeAI.Dashboard.Services.HubStatus.Failed
-        ? "đang kiểm tra / khởi động..."
+        ? "đang khởi động..."
         : Launcher.Status switch
         {
-            SmartHomeAI.Dashboard.Services.HubStatus.Started => "đã tự khởi động",
-            SmartHomeAI.Dashboard.Services.HubStatus.Failed => "không chạy được: " + Launcher.Detail,
-            _ => _s is null ? "không phản hồi" : "đang chạy",
+            SmartHomeAI.Dashboard.Services.HubStatus.Started => "tự khởi động",
+            SmartHomeAI.Dashboard.Services.HubStatus.Failed => "lỗi: " + Launcher.Detail,
+            _ => _s is null ? "không phản hồi" : "chạy",
         };
     string AiText => Ai.State switch
     {
@@ -139,16 +208,45 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _lastAi = Ai.State;
         await Refresh();
         _t = new Timer(async _ => { await Refresh(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
     }
 
-    async Task Refresh() { _s = await Hub.State(); _a = await Hub.Alerts(); }
+    async Task Refresh()
+    {
+        // Mỗi lần AI vào Running đổi _camGen để tạo lại thẻ img; rời Running thì thẻ bị gỡ.
+        if (Ai.State != _lastAi)
+        {
+            if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running) _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _lastAi = Ai.State;
+        }
+        _s = await Hub.State(); _a = await Hub.Alerts();
+        if (_tick++ % 2 == 0) _h = await Hub.History(_min);
+        _esp = Sim.Esp.On ? await Sim.EspState() : null;
+    }
+
+    async Task SetMin(int m) { _min = m; _h = await Hub.History(m); }
     async Task Mode(bool auto) => await Act(Hub.SetMode(auto));
     async Task Dev(string id, bool on) => await Act(Hub.SetDevice(id, on));
     async Task Act(Task<bool> call) { _msg = await call ? null : "Gửi lệnh thất bại"; await Refresh(); }
     async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
     async Task ToggleAi(ChangeEventArgs e) { await Ai.SetEnabled(e.Value is true); }
+    async Task ToggleSim(SmartHomeAI.Dashboard.Services.SimProc p, bool on) { await Task.Run(() => p.Set(on)); if (!on) _esp = null; }
+    async Task Put(string key, object v)
+    {
+        _msg = await Sim.EspSet(new Dictionary<string, object> { [key] = v }) ? null : "ESP32 giả từ chối giá trị";
+        _esp = await Sim.EspState();
+    }
+
+    static double ParseD(ChangeEventArgs e) => double.Parse(e.Value?.ToString() ?? "0", Inv);
+    static double LuxToPos(double lux) => Math.Round(Math.Log(Math.Clamp(lux, 0, 2000) + 1) / Math.Log(2001) * 1000);
+    static double PosToLux(double pos) => Math.Round(Math.Pow(2001, pos / 1000) - 1);
+
+    static string OccVi(string o) => o switch
+    {
+        "Occupied" => "Có người", "OtherArea" => "Khu khác", "ExitPending" => "Đang rời", "AwayConfirmed" => "Vắng nhà", _ => "Chưa rõ",
+    };
 
     static string Note(string o) => o switch
     {

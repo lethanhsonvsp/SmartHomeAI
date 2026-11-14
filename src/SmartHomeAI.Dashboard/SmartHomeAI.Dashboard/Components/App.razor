@@ -17,6 +17,15 @@
 <body>
     <Routes />
     <ReconnectModal />
+    <script>
+        // Luồng MJPEG lỗi (AI chưa sẵn sàng): tự nạp lại mỗi 2 giây, tối đa 10 lần.
+        window.camRetry = function (i, reset) {
+            if (reset) i.dataset.n = 0;
+            var n = +(i.dataset.n || 0); i.style.opacity = 0;
+            if (n >= 10) return; i.dataset.n = n + 1;
+            setTimeout(function () { if (i.isConnected) i.src = i.dataset.base + '?t=' + Date.now(); }, 2000);
+        };
+    </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
