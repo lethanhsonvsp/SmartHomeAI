@@ -71,3 +71,86 @@ def test_server_snapshot_and_mjpeg():
         r.close()
     finally:
         srv.close()
+
+
+# ---- API cấu hình / vùng ----
+import json
+import urllib.error
+
+from smarthome_ai.zones import Zones
+
+ITEM = {"box": (0.2, 0.2, 0.6, 0.9), "kp": kp17(k5=(.3, .3, .9), k6=(.5, .3, .9)), "id": 1, "zone": "sofa", "posture": "sitting", "conf": .8}
+ZONES = {"livingroom": [[0, 0], [1, 0], [1, 1], [0, 1]], "sofa": [[.1, .1], [.5, .1], [.5, .5], [.1, .5]]}
+
+
+def call(base, path, method="GET", body=None, raw=None):
+    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
+    req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": "application/json"})
+    try:
+        r = urllib.request.urlopen(req)
+    except urllib.error.HTTPError as e:
+        r = e
+    return r.status, r.headers, r.read()
+
+
+def test_overlay_respects_cfg():
+    f = np.full((120, 160, 3), 50, np.uint8)
+    off = {"skeleton": False, "boxes": False, "zones": False, "labels": False}
+    assert not (draw_overlay(f, [ITEM], ZONES, off) != f).any()
+    for k in off:
+        assert (draw_overlay(f, [ITEM], ZONES, {**off, k: True}) != f).any(), k
+
+
+def test_config_frame_zones_api(tmp_path):
+    zp = tmp_path / "zones.json"
+    zn = Zones({"livingroom": ZONES["livingroom"]})
+    srv = StreamServer(0, zn, host="127.0.0.1", fps=50, zones_path=zp)
+    try:
+        b = f"http://127.0.0.1:{srv.port}"
+        # config
+        assert json.loads(call(b, "/config")[2]) == {"skeleton": True, "boxes": True, "zones": True, "labels": True}
+        s, h, body = call(b, "/config", "POST", {"skeleton": False})
+        assert s == 200 and json.loads(body)["skeleton"] is False and h["Access-Control-Allow-Origin"] == "*"
+        for bad in ({"foo": True}, {"boxes": "yes"}, {"boxes": 1}, [1]):
+            assert call(b, "/config", "POST", bad)[0] == 400
+        assert call(b, "/config", "POST", raw=b"{x")[0] == 400
+        assert json.loads(call(b, "/config")[2])["skeleton"] is False
+        # preflight
+        s, h, _ = call(b, "/zones", "OPTIONS")
+        assert s == 204 and "PUT" in h["Access-Control-Allow-Methods"] and h["Access-Control-Allow-Origin"] == "*"
+        # frame.jpg: không lớp phủ; snapshot có
+        raw = np.full((90, 160, 3), 50, np.uint8)
+        call(b, "/config", "POST", {"skeleton": True})
+        srv.update(raw, [ITEM])
+        assert call(b, "/zones", "PUT", {"zones": {**ZONES}})[0] == 200  # vùng sofa tô lên snapshot
+        import cv2, time
+        time.sleep(0.2)
+        dec = lambda x: cv2.imdecode(np.frombuffer(x, np.uint8), cv2.IMREAD_COLOR)
+        s, h, fj = call(b, "/frame.jpg")
+        assert h["Cache-Control"] == "no-store"
+        fr, sn = dec(fj), dec(call(b, "/snapshot.jpg")[2])
+        assert np.abs(fr.astype(int) - 50).max() <= 3  # JPEG của nền phẳng
+        assert np.abs(sn.astype(int) - fr.astype(int)).max() > 30
+        # chưa có khung -> ảnh chờ
+        srv.latest = (None, [], 0.0)
+        assert call(b, "/frame.jpg")[2][:2] == b"\xff\xd8"
+        # zones: GET, PUT hợp lệ đã nạp và ghi tệp
+        assert json.loads(call(b, "/zones")[2])["zones"].keys() == ZONES.keys()
+        good = {"zones": {"livingroom": ZONES["livingroom"], "door": [[0, 0], [.2, 0], [.2, 1]]}}
+        assert call(b, "/zones", "PUT", good)[0] == 200
+        assert list(zn.polys) == ["door", "livingroom"] and zn.zone_of((.1, .5)) == "door"
+        assert json.loads(zp.read_text()) == {"zones": zn.polys} and not (tmp_path / "zones.json.tmp").exists()
+        # PUT sai: 400, không đổi
+        before, disk = dict(zn.polys), zp.read_text()
+        tri = [[0, 0], [1, 0], [1, 1]]
+        for bad in ({"zones": {"door": tri}}, {"zones": {"livingroom": tri[:2]}}, {"zones": {"livingroom": [[0, 0], [1, 0], [2, 1]]}},
+                    {"zones": {"livingroom": tri, "kitchen": tri}}, {"zones": {"livingroom": [[0, 0], [1, 0], [True, 1]]}},
+                    {"zones": {"livingroom": [[0, 0]] * 21}}, {"zones": {"livingroom": [[0, 0], [1, 0], ["a", 1]]}}, [1]):
+            s, _, body = call(b, "/zones", "PUT", bad)
+            assert s == 400 and "error" in json.loads(body), bad
+        assert call(b, "/zones", "PUT", raw=b"x" * 70000)[0] == 413
+        assert zn.polys == before and zp.read_text() == disk
+        # mặc định
+        assert "sofa" in json.loads(call(b, "/zones/default")[2])["zones"]
+    finally:
+        srv.close()

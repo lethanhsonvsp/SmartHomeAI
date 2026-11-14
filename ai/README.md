@@ -20,10 +20,16 @@ cp config/zones.example.json config/zones.json   # vẽ lại đa giác theo gó
 # thử không camera, kịch bản có sẵn:
 .venv/bin/python -m smarthome_ai --detector fake --script config/fake-script.example.json --zones config/zones.example.json
 ```
+`--zones` tùy chọn: bỏ qua thì dùng `config/zones.json` nếu có, không thì `zones.example.json`. `config/zones.json` là cấu hình cục bộ (gitignore), do `PUT /zones` ghi.
 Xem tin: `mosquitto_sub -t 'home/ai/#' -v`.
 
 ## Luồng hình cho Dashboard
 Cùng tiến trình mở HTTP ở `--stream-port` (mặc định 8090, `0` = tắt): `GET /stream.mjpg` (multipart/x-mixed-replace, ~8 fps), `GET /snapshot.jpg`, kèm `Access-Control-Allow-Origin: *`; nhúng bằng `<img src="http://host:8090/stream.mjpg">`. Khung có vùng (tô nhạt), hộp, xương COCO-17, `#track_id posture conf [zone]` (chữ ASCII). Chưa có khung hoặc camera mất >5 s thì trả ảnh "Dang cho camera". Server nghe 0.0.0.0, không xác thực: chỉ dùng trong LAN.
+
+### API cấu hình (cùng cổng, CORS GET/POST/PUT/OPTIONS, thân tối đa 64 KB)
+- `GET /config` -> `{"skeleton":true,"boxes":true,"zones":true,"labels":true}`; `POST /config` nhận một phần các khóa đó (bool; khóa lạ/sai kiểu = 400), đổi lớp phủ stream + snapshot ngay, trả config mới. `--no-skeleton` đặt mặc định ban đầu.
+- `GET /frame.jpg`: khung mới nhất KHÔNG lớp phủ (nền cho trình vẽ vùng; ảnh chờ nếu chưa có khung), `Cache-Control: no-store`.
+- `GET /zones` -> `{"zones": {...}}` (định dạng như `zones.example.json`); `PUT /zones` cùng định dạng: chỉ tên `livingroom, sofa, door, other_exit`, bắt buộc `livingroom`, mỗi vùng 3..20 điểm `[x,y]` trong 0..1; sai = 400 kèm `error`, không đổi gì. Hợp lệ thì dùng ngay từ khung kế (giữ tracker) và ghi nguyên tử `zones.json` cạnh tệp `--zones` (hoặc `config/zones.json`). `livingroom` luôn được xếp cuối (ưu tiên thấp nhất); các vùng khác giữ thứ tự gửi. `GET /zones/default` -> vùng ví dụ.
 
 ## Mô hình pose
 `--detector pose` = YOLOv8n-pose ONNX chạy bằng onnxruntime CPU (không torch). Nguồn: https://huggingface.co/Xenova/yolov8n-pose (xuất từ Ultralytics yolov8n-pose). **Giấy phép AGPL-3.0** (Ultralytics): phù hợp đồ án học thuật/nội bộ; nếu phát hành sản phẩm đóng kín phải đổi mô hình hoặc mua giấy phép. Thiếu mô hình thì báo lỗi rõ, dùng `--detector hog` làm dự phòng.

@@ -6,13 +6,16 @@ from .pose import PoseDetector
 from .pipeline import run
 from .publisher import Publisher
 from .source import CvSource, FakeSource
-from .zones import Zones
+from pathlib import Path
+
+from .zones import CONFIG_DIR, EXAMPLE_PATH, Zones
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="smarthome_ai")
     p.add_argument("--source", help="đường dẫn video, rtsp://..., hoặc chỉ số webcam (0, 1, ...)")
-    p.add_argument("--zones", required=True)
+    p.add_argument("--zones", help="tệp vùng; mặc định config/zones.json nếu có, không thì zones.example.json")
+    p.add_argument("--no-skeleton", action="store_true", help="mặc định ban đầu: không vẽ xương trên luồng hình")
     p.add_argument("--host", default="localhost")
     p.add_argument("--port", type=int, default=1883)
     p.add_argument("--user", help="MQTT user (hoặc SMARTHOME_MQTT_USER)")
@@ -35,15 +38,19 @@ def main(argv=None):
             p.error("--detector {hog,pose} cần --source")
         det = PoseDetector() if a.detector == "pose" else HogDetector()
         src = CvSource(a.source, a.width, a.height)
+    local = CONFIG_DIR / "zones.json"
+    zpath = Path(a.zones) if a.zones else (local if local.exists() else EXAMPLE_PATH)
+    # PUT /zones ghi vào zones.json cạnh tệp --zones (ghi đè nếu chính nó là zones.json)
+    save_to = zpath if zpath.name == "zones.json" else zpath.with_name("zones.json")
+    zn = Zones.load(zpath)
     viewer = None
     if a.stream_port:
         from .stream import StreamServer
-        zn = Zones.load(a.zones)
-        viewer = StreamServer(a.stream_port, zn.polys)
+        viewer = StreamServer(a.stream_port, zn, zones_path=save_to, skeleton=not a.no_skeleton)
         print(f"MJPEG: http://localhost:{a.stream_port}/stream.mjpg", flush=True)
     pub = Publisher(a.host, a.port, user=a.user, password=a.password)
     try:
-        run(src, det, Zones.load(a.zones), pub, detect_fps=a.detect_fps, state_hz=a.state_hz,
+        run(src, det, zn, pub, detect_fps=a.detect_fps, state_hz=a.state_hz,
             viewer=viewer)
     except KeyboardInterrupt:
         pass

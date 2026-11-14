@@ -1,8 +1,9 @@
-"""Máy chủ MJPEG trong tiến trình: GET /stream.mjpg, GET /snapshot.jpg, CORS *.
+"""Máy chủ HTTP trong tiến trình: /stream.mjpg, /snapshot.jpg, /frame.jpg (không lớp phủ), /config, /zones, CORS *.
 
 Pipeline gọi update(frame, items); một thread riêng vẽ lớp phủ + nén JPEG ~fps lần/giây.
 Chữ ASCII (font Hershey của OpenCV không có dấu).
 """
+import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,11 +11,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cv2
 import numpy as np
 
+from .zones import Zones, EXAMPLE_PATH, parse_zones, save_atomic
+
 # Cặp khớp COCO-17 để vẽ xương
 BONES = [(5, 6), (5, 7), (7, 9), (6, 8), (8, 10), (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
          (0, 1), (0, 2), (1, 3), (2, 4)]
 COLORS = [(80, 200, 255), (120, 255, 120), (255, 160, 90), (200, 120, 255), (90, 255, 255)]
 STALE_S = 5.0
+MAX_BODY = 64 * 1024
+CONFIG_KEYS = ("skeleton", "boxes", "zones", "labels")
 
 
 def placeholder(text="Dang cho camera") -> np.ndarray:
@@ -24,12 +29,14 @@ def placeholder(text="Dang cho camera") -> np.ndarray:
     return img
 
 
-def draw_overlay(frame, items, zones=None):
-    """Trả bản sao khung có vùng (tô nhạt), hộp, xương, nhãn id/posture/conf."""
+def draw_overlay(frame, items, zones=None, cfg=None):
+    """Trả bản sao khung; cfg {skeleton, boxes, zones, labels} bật/tắt từng lớp (mặc định bật hết)."""
+    cfg = cfg or {}
+    on = lambda k: cfg.get(k, True)
     img = frame.copy()
     h, w = img.shape[:2]
     pt = lambda x, y: (int(x * w), int(y * h))
-    if zones:
+    if zones and on("zones"):
         layer = img.copy()
         for name, poly in zones.items():
             if name == "livingroom":  # đa giác phủ cả khung, chỉ vẽ viền cho đỡ rối
@@ -44,20 +51,22 @@ def draw_overlay(frame, items, zones=None):
         col = COLORS[it["id"] % len(COLORS)]
         x1, y1 = pt(*it["box"][:2])
         x2, y2 = pt(*it["box"][2:])
-        cv2.rectangle(img, (x1, y1), (x2, y2), col, 2)
+        if on("boxes"):
+            cv2.rectangle(img, (x1, y1), (x2, y2), col, 2)
         kp = it.get("kp")
-        if kp:
+        if kp and on("skeleton"):
             for a, b in BONES:
                 if kp[a][2] >= 0.3 and kp[b][2] >= 0.3:
                     cv2.line(img, pt(*kp[a][:2]), pt(*kp[b][:2]), col, 2, cv2.LINE_AA)
             for x, y, c in kp:
                 if c >= 0.3:
                     cv2.circle(img, pt(x, y), 3, (255, 255, 255), -1, cv2.LINE_AA)
-        label = f"#{it['id']} {it['posture']} {it['conf']:.2f}" + (f" [{it['zone']}]" if it.get("zone") else "")
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        ty = max(y1, th + 6)
-        cv2.rectangle(img, (x1, ty - th - 6), (x1 + tw + 6, ty), col, -1)
-        cv2.putText(img, label, (x1 + 3, ty - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+        if on("labels"):
+            label = f"#{it['id']} {it['posture']} {it['conf']:.2f}" + (f" [{it['zone']}]" if it.get("zone") else "")
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            ty = max(y1, th + 6)
+            cv2.rectangle(img, (x1, ty - th - 6), (x1 + tw + 6, ty), col, -1)
+            cv2.putText(img, label, (x1 + 3, ty - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
     return img
 
 
@@ -66,8 +75,11 @@ def encode(img, quality=70) -> bytes:
 
 
 class StreamServer:
-    def __init__(self, port=8090, zones=None, fps=8.0, quality=70, host="0.0.0.0"):
-        self.zones, self.fps, self.quality = zones, fps, quality
+    def __init__(self, port=8090, zones=None, fps=8.0, quality=70, host="0.0.0.0", zones_path=None, skeleton=True):
+        # zones: Zones (dùng chung với pipeline để nạp lại tức thì) hoặc dict đa giác
+        self.zones = zones if isinstance(zones, Zones) else Zones(zones or {})
+        self.zones_path, self.fps, self.quality = zones_path, fps, quality
+        self.cfg = {"skeleton": skeleton, "boxes": True, "zones": True, "labels": True}
         self.cond = threading.Condition()
         self.latest = (None, [], 0.0)  # frame, items, thời điểm nhận
         self.jpeg, self.n = encode(placeholder(), quality), 0
@@ -82,13 +94,79 @@ class StreamServer:
                 path = self.path.split("?")[0]
                 if path == "/snapshot.jpg":
                     self._send(owner.jpeg, "image/jpeg")
+                elif path == "/frame.jpg":
+                    self._send(owner.raw_jpeg(), "image/jpeg")
+                elif path == "/config":
+                    self._json(owner.cfg)
+                elif path == "/zones":
+                    self._json({"zones": owner.zones.polys})
+                elif path == "/zones/default":
+                    self._json(json.loads(EXAMPLE_PATH.read_text()))
                 elif path == "/stream.mjpg":
                     self._stream()
                 else:
                     self.send_error(404)
 
-            def _send(self, body, ctype):
-                self.send_response(200)
+            def do_OPTIONS(self):
+                self.send_response(204)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Max-Age", "600")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def _body(self):
+                """JSON thân yêu cầu (<=64 KB) hoặc None sau khi đã trả 400/413."""
+                try:
+                    n = int(self.headers.get("Content-Length", ""))
+                except ValueError:
+                    self._json({"error": "thiếu Content-Length"}, 400)
+                    return None
+                if n > MAX_BODY:
+                    self._json({"error": "thân quá 64 KB"}, 413)
+                    self.close_connection = True
+                    return None
+                try:
+                    return json.loads(self.rfile.read(n))
+                except ValueError:
+                    self._json({"error": "JSON không hợp lệ"}, 400)
+
+            def do_POST(self):
+                if self.path.split("?")[0] != "/config":
+                    return self.send_error(404)
+                body = self._body()
+                if body is None:
+                    return
+                if not isinstance(body, dict) or any(k not in CONFIG_KEYS or not isinstance(v, bool) for k, v in body.items()):
+                    return self._json({"error": f"chỉ nhận khóa bool trong {list(CONFIG_KEYS)}"}, 400)
+                owner.cfg = {**owner.cfg, **body}
+                owner.rerender()
+                self._json(owner.cfg)
+
+            def do_PUT(self):
+                if self.path.split("?")[0] != "/zones":
+                    return self.send_error(404)
+                body = self._body()
+                if body is None:
+                    return
+                try:
+                    polys = parse_zones(body)
+                    if owner.zones_path:
+                        save_atomic(owner.zones_path, polys)
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                except OSError as e:
+                    return self._json({"error": f"không ghi được tệp: {e}"}, 500)
+                owner.zones.polys = polys
+                owner.rerender()
+                self._json({"zones": polys})
+
+            def _json(self, obj, code=200):
+                self._send(json.dumps(obj).encode(), "application/json", code)
+
+            def _send(self, body, ctype, code=200):
+                self.send_response(code)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
@@ -121,17 +199,25 @@ class StreamServer:
     def update(self, frame, items):
         self.latest = (frame, items, time.monotonic())
 
+    def raw_jpeg(self):
+        frame, _, t = self.latest
+        fresh = frame is not None and time.monotonic() - t <= STALE_S
+        return encode(frame if fresh else placeholder(), self.quality)
+
+    def rerender(self):
+        frame, items, t = self.latest
+        if frame is None or time.monotonic() - t > STALE_S:
+            img = placeholder()
+        else:
+            img = draw_overlay(frame, items, self.zones.polys, self.cfg)
+        jpg = encode(img, self.quality)
+        with self.cond:
+            self.jpeg, self.n = jpg, self.n + 1
+            self.cond.notify_all()
+
     def _render(self):
         while not self._stop.wait(1 / self.fps):
-            frame, items, t = self.latest
-            if frame is None or time.monotonic() - t > STALE_S:
-                img = placeholder()
-            else:
-                img = draw_overlay(frame, items, self.zones)
-            jpg = encode(img, self.quality)
-            with self.cond:
-                self.jpeg, self.n = jpg, self.n + 1
-                self.cond.notify_all()
+            self.rerender()
 
     def close(self):
         self._stop.set()
