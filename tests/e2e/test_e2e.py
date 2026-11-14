@@ -138,10 +138,6 @@ def test_sc04_sofa_cool_no_fan(hub):
 
 def test_sc05_other_area_not_away(hub):
     run("SC05", 0)
-    # sim/scenarios.py SC05 kết thúc bằng persons=[] (Hub coi là rời, ExitPending rồi AwayConfirmed); AI thật vẫn thấy người ở other_exit
-    hub.c.publish("home/ai/livingroom/state", json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "seq": 999, "camera_ok": True,
-                  "persons": [{"track_id": 1, "zone": "other_exit", "posture": "standing", "conf": 0.85}]}), qos=1)
-    time.sleep(0.5)
     assert api("/api/state")["occupancy"] == "OtherArea"
 
 

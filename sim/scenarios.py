@@ -64,7 +64,7 @@ def sc05(b):                                                     # sang khu khá
     b.env(0, 28.0, 150)
     b.state(1, 10, [(1, "sofa", "lying")])
     b.move(11, 1, "sofa", "other_exit", "out")
-    b.state(11, 60, [])
+    b.state(11, 60, [(1, "other_exit", "standing")])  # vẫn thấy người ở lối sang khu khác
 
 
 def _leave(b, t):                                                # ra cửa chính
