@@ -8,8 +8,12 @@ public record EnvReading(DateTimeOffset Ts, double TempC, double Humidity, doubl
 public record DeviceReading(DateTimeOffset Ts, bool On);
 
 /// <summary>Latest-value store; one lock guards it and the (non-thread-safe) OccupancyEngine.</summary>
-public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts, HistoryStore? history = null, DecisionLog? decisions = null)
+public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts, HistoryStore? history = null, DecisionLog? decisions = null,
+    TimeProvider? clock = null, ManualStore? manualStore = null)
 {
+    readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    DateTimeOffset? _lyingSince; // continuous lying on the sofa, from AiState
+    readonly bool _restored = Restore(manualStore, automation); // keeps a manual pause across restarts
     public DecisionLog Decisions { get; } = decisions ?? new(TimeProvider.System);
     public HistoryStore History { get; } = history ?? new(TimeProvider.System);
     readonly object _gate = new();
@@ -32,14 +36,24 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
                 case DoorMsg d: _door[d.Node] = (d.Ts, d.Door.Open); engine.OnDoor(d.Door); break;
                 case StatusMsg s: _online[s.Source] = s.Status.Online; if (s.Source == "ai") engine.OnAiStatus(s.Status); break;
                 case DeviceStateMsg d:
+                    if (automation.OnDeviceState(d.Device, d.On))
+                    {
+                        Decisions.Add("manual", $"{DecisionText.Cap(DecisionText.DeviceName(d.Device))} bị {(d.On ? "bật" : "tắt")} ngoài hệ thống (nút/ứng dụng): tự động tạm dừng", d.Device, d.On);
+                        SaveManual();
+                    }
                     if (!_devices.TryGetValue(d.Device, out var old) || old.On != d.On)
                         Decisions.Add("device", $"{DecisionText.Cap(DecisionText.DeviceName(d.Device))} đã {(d.On ? "bật" : "tắt")}", d.Device, d.On);
                     _devices[d.Device] = new(d.Ts, d.On); break;
-                case DeviceSetMsg { Source: "manual" } c:
+                case DeviceSetMsg { Source: not "manual" } c: automation.OnHubCommand(c.Device, c.On); break;
+                case DeviceSetMsg c:
+                    automation.OnHubCommand(c.Device, c.On);
                     automation.OnManualCommand(c.Device, c.On);
+                    SaveManual();
                     Decisions.Add("manual", $"Bạn {(c.On ? "bật" : "tắt")} {DecisionText.DeviceName(c.Device)} bằng tay, tự động tạm dừng với thiết bị này", c.Device, c.On);
                     break;
-                case AiStateMsg a: _persons = a.State.Persons; engine.OnAiState(a.State); break;
+                case AiStateMsg a:
+                    _persons = a.State.Persons;
+                    if (_persons.Any(p => p.Zone == automation.Options.SofaZone && p.Posture == "lying")) _lyingSince ??= _clock.GetUtcNow(); else _lyingSince = null; engine.OnAiState(a.State); break;
                 case AiTransitionMsg t: engine.OnTransition(t.Transition); break;
             }
             return Changed();
@@ -57,6 +71,22 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
         }
     }
 
+    /// <summary>The Hub published a command itself (auto/alert); its state echo is not a manual change.</summary>
+    public void NoteCommand(string id, bool on) { lock (_gate) automation.OnHubCommand(id, on); }
+
+    public AutomationOptions AutomationOptions => automation.Options;
+
+    /// <summary>Last state the device reported; null if none yet.</summary>
+    public bool? IsOn(string id) { lock (_gate) return _devices.TryGetValue(id, out var d) ? d.On : null; }
+
+    void SaveManual() => manualStore?.Save(automation.ManualTimes);
+
+    static bool Restore(ManualStore? store, AutomationEngine automation)
+    {
+        if (store is not null) foreach (var (id, at) in store.Load()) automation.RestoreManual(id, at);
+        return true;
+    }
+
     public bool Auto { get { lock (_gate) return _auto; } set { lock (_gate) _auto = value; } }
 
     /// <summary>Auto commands for the current state; empty in Manual mode.</summary>
@@ -67,7 +97,8 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
             if (!_auto) return [];
             var latest = _env.Values.OrderByDescending(e => e.Ts).FirstOrDefault();
             bool On(string id) => _devices.TryGetValue(id, out var d) && d.On;
-            AutomationInput input = new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan"));
+            AutomationInput input = new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan"),
+                _lyingSince is { } ls ? _clock.GetUtcNow() - ls : TimeSpan.Zero);
             Decisions.Decide(automation.Diagnose(input));
             return automation.Evaluate(input);
         }

@@ -9,3 +9,5 @@ __pycache__/
 .pytest_cache
 infra/mosquitto/passwd
 infra/mosquitto/acl
+src/SmartHomeAI.Hub/data/
+data/manual.json

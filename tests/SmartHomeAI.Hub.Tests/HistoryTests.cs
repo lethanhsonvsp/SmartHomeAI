@@ -11,7 +11,7 @@ public class HistoryTests
 {
     readonly FakeTimeProvider time = new(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
 
-    HubState State(HistoryStore h) => new(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time), h);
+    HubState State(HistoryStore h) => new(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time), h);
 
     [Fact]
     public void Env_occupancy_persons_recorded_and_json_contract()

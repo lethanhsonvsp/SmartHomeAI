@@ -17,7 +17,7 @@ public class DecisionLogTests
 
     public DecisionLogTests()
     {
-        _state = new(new OccupancyEngine(_t), new AutomationEngine(_t), new AlertManager(_t), null, new DecisionLog(_t));
+        _state = new(new OccupancyEngine(_t), new AutomationEngine(_t, TestOpts.NoWait), new AlertManager(_t), null, new DecisionLog(_t));
         _r = new(_state, new RecLog(), _t, NullLogger<MessageRouter>.Instance, _bus);
     }
 

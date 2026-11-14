@@ -78,7 +78,7 @@ public class HabitEngineTests
     public void SC04_RealAdvisor_CoolButLearned_FanOnViaEngine()
     {
         var h = H(); Fan(h, 25, 25, 25, 25, 25);
-        var e = new AutomationEngine(_t, null, h);
+        var e = new AutomationEngine(_t, new AutomationOptions { StartupGrace = TimeSpan.Zero }, h);
         Assert.Empty(e.Evaluate(Sofa(25)));               // not approved yet
         h.Approve(h.Rules[0].Id);
         Assert.Equal([new DeviceCommand("fan", true)], e.Evaluate(Sofa(25)));

@@ -8,6 +8,8 @@ using SmartHomeAI.Hub;
 
 namespace SmartHomeAI.Hub.Tests;
 
+static class TestOpts { public static readonly AutomationOptions NoWait = new() { StartupGrace = TimeSpan.Zero, SofaLyingMin = TimeSpan.Zero }; }
+
 class FakeBus : IMqttPublisher
 {
     public List<(string Topic, string Payload)> Sent = [];
@@ -73,7 +75,7 @@ public class RouterTests
     public void Snapshot_persons_listed_then_empty_when_stale_or_ai_offline()
     {
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
-        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
+        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time));
         var r = new MessageRouter(state, new RecLog(), time, NullLogger<MessageRouter>.Instance, new FakeBus());
         const string ts = "\"ts\":\"2026-11-14T12:00:00Z\"";
         string Json() => System.Text.Json.JsonSerializer.Serialize(state.Snapshot());
@@ -99,7 +101,7 @@ public class RouterTests
     {
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
         var log = new RecLog();
-        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
+        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time));
         var r = new MessageRouter(state, log, time, NullLogger<MessageRouter>.Instance, new FakeBus());
         const string ts = "\"ts\":\"2026-11-14T12:00:00Z\"";
 
@@ -136,7 +138,7 @@ public class AutomationWiringTests
 
     public AutomationWiringTests()
     {
-        state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
+        state = new HubState(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time));
         r = new MessageRouter(state, log, time, NullLogger<MessageRouter>.Instance, bus);
         r.Handle("home/ai/status", "{" + Ts + ",\"online\":true}");
         r.Handle("home/device/light/state", "{" + Ts + ",\"on\":false}");
@@ -201,7 +203,7 @@ public class AlertWiringTests
 
     MessageRouter Make(AlertOptions? o = null, AlertWiring? w = null)
     {
-        var r = new MessageRouter(new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time, o)),
+        var r = new MessageRouter(new HubState(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time, o)),
             log, time, NullLogger<MessageRouter>.Instance, bus, w);
         r.Handle("home/ai/status", "{" + Ts + ",\"online\":true}");
         r.Handle("home/device/light/state", "{" + Ts + ",\"on\":true}");
@@ -257,6 +259,8 @@ public class AlertWiringTests
         Away(r);
         Run(r, 200);
         time.Advance(TimeSpan.FromSeconds(20)); // AI frames stop -> Unknown
+        r.Tick();
+        time.Advance(TimeSpan.FromSeconds(60)); // brief loss only freezes the alert
         r.Tick();
         Assert.Contains(bus.Sent, s => s.Topic == "home/alert/alert-1/cancel" && s.Payload.Contains("data_lost"));
         Assert.Contains("alert-alert-1:data_lost", log.Rows);

@@ -36,8 +36,12 @@ public static class DecisionText
     public static string Wait(Diagnosis d)
     {
         var name = Cap(DeviceName(d.DeviceId));
+        if (d.Code == DiagnosisCode.StartingUp) return "Đang chờ thiết bị báo trạng thái sau khi khởi động";
+        if (d.Code == DiagnosisCode.DeviceUnresponsive) return $"{name} không phản hồi sau {d.Params["count"]} lần: dừng gửi lệnh tự động cho tới khi thiết bị báo trạng thái";
+        if (d.Code == DiagnosisCode.AutoLocked) return $"{name} bị khóa tự động 1 giờ: đã đổi {d.Params["count"]} lần trong 1 giờ (nghi bật tắt liên tục)";
         var why = d.Code switch
         {
+            DiagnosisCode.LyingNotLongEnough => $"mới nằm ở sofa {N(d.Params["seconds"])} s, chờ đủ {N(d.Params["need"])} s",
             DiagnosisCode.NotOccupied => $"hiện diện đang là \"{State((OccupancyState)d.Params["state"]!)}\"",
             DiagnosisCode.LightBrightEnough => $"phòng đủ sáng ({N(d.Params["lux"])} lux ≥ {N(d.Params["threshold"])})",
             DiagnosisCode.NoLuxData => "chưa có dữ liệu độ sáng",

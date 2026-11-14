@@ -10,6 +10,9 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
 {
     readonly HashSet<string> _sent = []; // payloads we published and already logged; their bus echo must not be logged twice
 
+    readonly CommandGate _gate = new(time, state.AutomationOptions);
+    readonly Dictionary<string, DateTimeOffset> _lastNote = [];
+
     readonly IReadOnlyCollection<string> _autoOffAllowed = alertCfg?.AutoOffAllowed ?? [];
 
     public void Handle(string topic, string payload)
@@ -36,25 +39,63 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
     }
 
     /// <summary>Manual command from the API. Logged once, when its echo returns on the bus.</summary>
-    public bool PublishManual(string id, bool on)
+    public bool PublishManual(string id, bool on) => TryPublishManual(id, on, out _);
+
+    /// <summary>coalesced: the command was held (merged with a later one) or dropped as a duplicate instead of published now.</summary>
+    public bool TryPublishManual(string id, bool on, out bool coalesced)
     {
+        coalesced = false;
         if (id is not ("light" or "fan")) return false;
-        bus.Publish($"home/device/{id}/set", Payload(on, "manual"));
+        coalesced = Dispatch(id, on, "manual") != GateOutcome.Send;
         return true;
     }
 
     void RunAuto()
     {
+        foreach (var (id, on, source, merged, dup) in _gate.Due(state.IsOn))
+        {
+            if (dup) Note(id, "bỏ lệnh trùng");
+            else
+            {
+                if (merged > 1) Note(id, $"gộp {merged} lệnh trong {o3()} giây, chỉ gửi lệnh cuối");
+                Send(id, on, source);
+            }
+        }
         foreach (var c in state.Automate())
             SendCommand(c.DeviceId, c.On, "auto");
     }
 
-    void SendCommand(string id, bool on, string source)
+    string o3() => $"{state.AutomationOptions.MinCommandInterval.TotalSeconds:0.#}";
+
+    // At most one decision line per device per 10 s, so a burst does not spam the log.
+    void Note(string id, string text)
+    {
+        var now = time.GetUtcNow();
+        if (_lastNote.TryGetValue(id, out var t) && now - t < TimeSpan.FromSeconds(10)) return;
+        _lastNote[id] = now;
+        state.Decisions.Add("auto", $"{DecisionText.Cap(DecisionText.DeviceName(id))}: {text}", id);
+    }
+
+    GateOutcome Dispatch(string id, bool on, string source)
+    {
+        var r = _gate.Offer(id, on, source, state.IsOn(id));
+        if (r == GateOutcome.Send) Send(id, on, source);
+        else if (r == GateOutcome.Duplicate) Note(id, "bỏ lệnh trùng");
+        return r;
+    }
+
+    void SendCommand(string id, bool on, string source) => Dispatch(id, on, source);
+
+    void Send(string id, bool on, string source)
     {
         var topic = $"home/device/{id}/set";
         var payload = Payload(on, source);
-        lock (_sent) _sent.Add(topic + payload);
-        log.Command(new DeviceSetMsg(time.GetUtcNow(), id, on, source));
+        state.NoteCommand(id, on);
+        if (source != "manual") // manual is logged once, when its echo returns
+        {
+            lock (_sent) _sent.Add(topic + payload);
+            log.Command(new DeviceSetMsg(time.GetUtcNow(), id, on, source));
+        }
         bus.Publish(topic, payload);
     }
 

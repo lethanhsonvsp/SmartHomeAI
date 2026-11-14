@@ -8,7 +8,7 @@ public class AlertManager(TimeProvider time, AlertOptions? options = null)
     readonly AlertOptions _o = options ?? new();
     readonly List<AlertRecord> _history = [];
     int _seq;
-    DateTimeOffset? _awaySince, _lastRaised;
+    DateTimeOffset? _awaySince, _lastRaised, _unknownSince;
     string? _activeId;
     bool _done, _autoOffDone; // _done: alert was cancelled by devices off, no re-raise this episode
 
@@ -18,13 +18,19 @@ public class AlertManager(TimeProvider time, AlertOptions? options = null)
     {
         var acts = new List<AlertAction>();
         var now = time.GetUtcNow();
+        if (i.State == OccupancyState.Unknown && _awaySince is not null)
+        {
+            _unknownSince ??= now;
+            if (now - _unknownSince < _o.UnknownFreeze) return acts; // brief data loss: freeze, keep the alert and its timers
+        }
         if (i.State != OccupancyState.AwayConfirmed)
         {
             // Unknown = no data, so no alert (DataLost); any other state means the person is back.
             Cancel(acts, now, i.State == OccupancyState.Unknown ? CancelReason.DataLost : CancelReason.PersonReturned);
-            _awaySince = _lastRaised = null; _done = _autoOffDone = false;
+            _awaySince = _lastRaised = _unknownSince = null; _done = _autoOffDone = false;
             return acts;
         }
+        if (_unknownSince is { } u) { var gap = now - u; _awaySince += gap; _lastRaised += gap; _unknownSince = null; } // resume counting
         _awaySince ??= now;
         List<string> on = [];
         if (i.LightOn) on.Add("light");

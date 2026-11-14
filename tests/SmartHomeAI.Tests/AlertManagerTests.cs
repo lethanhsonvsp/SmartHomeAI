@@ -45,8 +45,29 @@ public class AlertManagerTests
     {
         var m = M();
         m.Evaluate(In()); At(m, Min(2), In());
+        Assert.Empty(At(m, Min(1), In(OccupancyState.Unknown))); // frozen
         Assert.Equal([new CancelAlert("alert-1", CancelReason.DataLost)], At(m, Min(1), In(OccupancyState.Unknown)));
         Assert.Equal(CancelReason.DataLost, m.History[0].Reason);
+    }
+
+    [Fact] public void F_ShortUnknown_FreezesCountersAndKeepsAlert()
+    {
+        var m = M();
+        m.Evaluate(In()); At(m, Min(2), In()); // alert-1 raised
+        Assert.Empty(m.Evaluate(In(OccupancyState.Unknown)));
+        Assert.Empty(At(m, TimeSpan.FromSeconds(59), In(OccupancyState.Unknown)));
+        Assert.Empty(At(m, TimeSpan.FromSeconds(1), In())); // back after 60 s frozen: still no cancel, no new id
+        Assert.Null(m.History[0].CancelledAt);
+        Assert.Empty(At(m, Min(4.9), In())); // reminder clock resumed: 5 min counted without the 60 s gap
+        R(At(m, Min(0.1), In()), "alert-1", "light", AlertLevel.Reminder);
+    }
+
+    [Fact] public void F_LongUnknown_CancelsDataLost()
+    {
+        var m = M();
+        m.Evaluate(In()); At(m, Min(2), In());
+        m.Evaluate(In(OccupancyState.Unknown));
+        Assert.Equal([new CancelAlert("alert-1", CancelReason.DataLost)], At(m, TimeSpan.FromSeconds(90), In(OccupancyState.Unknown)));
     }
 
     [Fact] public void DevicesOff_Cancels_NoRepeat()
@@ -63,6 +84,7 @@ public class AlertManagerTests
         Assert.Empty(m.Evaluate(In(OccupancyState.Unknown)));
         Assert.Empty(At(m, Min(20), In(OccupancyState.Unknown)));
         m.Evaluate(In()); At(m, Min(2), In());
+        m.Evaluate(In(OccupancyState.Unknown));
         Assert.IsType<CancelAlert>(Assert.Single(At(m, Min(1), In(OccupancyState.Unknown))));
     }
 

@@ -22,5 +22,7 @@ public record AlertOptions
     public TimeSpan FirstAfter { get; init; } = TimeSpan.FromMinutes(2);
     public TimeSpan RemindEvery { get; init; } = TimeSpan.FromMinutes(5);
     public TimeSpan AutoOffAfter { get; init; } = TimeSpan.FromMinutes(10);
+    /// <summary>Unknown shorter than this after AwayConfirmed freezes the counters instead of cancelling.</summary>
+    public TimeSpan UnknownFreeze { get; init; } = TimeSpan.FromSeconds(60);
     public bool AutoOffEnabled { get; init; }
 }

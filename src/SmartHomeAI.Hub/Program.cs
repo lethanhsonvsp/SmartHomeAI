@@ -8,14 +8,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddSingleton(sp => new OccupancyEngine(sp.GetRequiredService<TimeProvider>(), HubConfig.Occupancy(builder.Configuration)));
-builder.Services.AddSingleton(sp => new AutomationEngine(sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton(sp => new AutomationEngine(sp.GetRequiredService<TimeProvider>(),
+    builder.Configuration.GetSection("Automation").Get<AutomationOptions>()));
+builder.Services.AddSingleton(sp => new ManualStore(builder.Configuration["Automation:ManualPath"] ?? "./data/manual.json", sp.GetRequiredService<ILogger<ManualStore>>()));
 builder.Services.AddSingleton(sp => new AlertManager(sp.GetRequiredService<TimeProvider>(),
     builder.Configuration.GetSection("Alerts").Get<AlertOptions>()));
 builder.Services.AddSingleton(new AlertWiring(builder.Configuration.GetSection("Alerts:AutoOffAllowed").Get<string[]>() ?? []));
 builder.Services.AddSingleton(sp => new HistoryStore(sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(sp => new DecisionLog(sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(sp => new HubState(sp.GetRequiredService<OccupancyEngine>(), sp.GetRequiredService<AutomationEngine>(),
-    sp.GetRequiredService<AlertManager>(), sp.GetRequiredService<HistoryStore>(), sp.GetRequiredService<DecisionLog>()));
+    sp.GetRequiredService<AlertManager>(), sp.GetRequiredService<HistoryStore>(), sp.GetRequiredService<DecisionLog>(),
+    sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ManualStore>()));
 builder.Services.AddSingleton<MqttBus>();
 builder.Services.AddSingleton<IMqttPublisher>(sp => sp.GetRequiredService<MqttBus>());
 builder.Services.AddSingleton<MessageRouter>();
@@ -45,7 +48,7 @@ app.MapGet("/api/events", (string? limit, HubState s) =>
 var write = app.MapGroup("/api").AddEndpointFilterFactory(ApiKey.Filter);
 write.MapPost("/mode", (ModeRequest r, HubState s) => { s.Auto = r.Auto; return Results.Json(new { auto = r.Auto }); });
 write.MapPost("/device/{id}", (string id, DeviceRequest r, MessageRouter router) =>
-    router.PublishManual(id, r.On) ? Results.Json(new { id, on = r.On }) : Results.BadRequest(new { error = "id must be light or fan" }));
+    router.TryPublishManual(id, r.On, out var held) ? Results.Json(held ? new Dictionary<string, object> { ["id"] = id, ["on"] = r.On, ["coalesced"] = true } : new Dictionary<string, object> { ["id"] = id, ["on"] = r.On }) : Results.BadRequest(new { error = "id must be light or fan" }));
 app.MapGet("/api/alerts", (HubState s) => Results.Json(s.AlertHistory().Select(r => new
 {
     id = r.Id, raised_at = r.RaisedAt, cancelled_at = r.CancelledAt,

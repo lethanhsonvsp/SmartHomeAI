@@ -9,7 +9,8 @@ public class AutomationEngineTests
     readonly FakeTimeProvider _t = new(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
     class Advisor(bool answer) : IHabitAdvisor { public bool ShouldTurnOnFan(AutomationInput c) => answer; }
 
-    AutomationEngine E(bool? advisor = null) => new(_t, null, advisor is bool b ? new Advisor(b) : null);
+    static readonly AutomationOptions NoWait = new() { StartupGrace = TimeSpan.Zero };
+    AutomationEngine E(bool? advisor = null) => new(_t, NoWait, advisor is bool b ? new Advisor(b) : null);
     static AutomationInput In(OccupancyState s = OccupancyState.Occupied, string zone = "livingroom", string posture = "sitting",
         double? lux = 100, double? temp = 25, bool light = false, bool fan = false)
         => new(s, [new Person(1, zone, posture)], lux, temp, light, fan);
@@ -69,7 +70,8 @@ public class DiagnoseTests
 {
     readonly FakeTimeProvider _t = new(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
     class Advisor(bool a) : IHabitAdvisor { public bool ShouldTurnOnFan(AutomationInput c) => a; }
-    AutomationEngine E(bool? adv = null) => new(_t, null, adv is bool b ? new Advisor(b) : null);
+    static readonly AutomationOptions NoWait = new() { StartupGrace = TimeSpan.Zero };
+    AutomationEngine E(bool? adv = null) => new(_t, NoWait, adv is bool b ? new Advisor(b) : null);
     static AutomationInput In(OccupancyState s = OccupancyState.Occupied, string zone = "livingroom", string posture = "standing",
         double? lux = 100, double? temp = 25, bool light = false, bool fan = false, bool noPerson = false)
         => new(s, noPerson ? [] : [new Person(1, zone, posture)], lux, temp, light, fan);
