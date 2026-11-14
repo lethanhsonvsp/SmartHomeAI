@@ -1,5 +1,6 @@
 using SmartHomeAI.Dashboard;
 using SmartHomeAI.Dashboard.Components;
+using SmartHomeAI.Dashboard.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,7 +13,12 @@ builder.Services.AddHttpClient<HubClient>(c =>
 {
     c.BaseAddress = new Uri(builder.Configuration["Hub:BaseUrl"] ?? "http://localhost:5002");
     c.Timeout = TimeSpan.FromSeconds(3);
+    if (builder.Configuration["Dashboard:ApiKey"] is { Length: > 0 } key) c.DefaultRequestHeaders.Add("X-Api-Key", key);
 });
+builder.Services.AddSingleton<HubLauncher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HubLauncher>());
+builder.Services.AddSingleton<AiRunner>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<AiRunner>());
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -30,6 +36,10 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 // LAN HTTP-only; no HTTPS redirect
 
 app.UseAntiforgery();
+
+// Trang camera/cảnh báo cũ đã gộp vào trang chủ.
+app.MapGet("/camera", () => Results.Redirect("/"));
+app.MapGet("/alerts", () => Results.Redirect("/"));
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

@@ -2,63 +2,140 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject HubClient Hub
+@inject IConfiguration Cfg
+@inject NavigationManager Nav
+@inject SmartHomeAI.Dashboard.Services.HubLauncher Launcher
+@inject SmartHomeAI.Dashboard.Services.AiRunner Ai
 
 <PageTitle>SmartHomeAI</PageTitle>
 <h1>Phòng khách</h1>
 
+<p class="hubline">Hub: <span class="dot @(HubUp ? "up" : "down")"></span>@HubText</p>
+
 @if (_s is null)
 {
     <p class="err">Không kết nối được Hub</p>
-    return;
+}
+else
+{
+    <div class="grid">
+        <div class="card occ @_s.Occupancy">
+            <h3>Hiện diện</h3>
+            <strong>@_s.Occupancy</strong> · @_s.PersonCount người
+            <p>@Note(_s.Occupancy)</p>
+        </div>
+        <div class="card">
+            <h3>Cảm biến</h3>
+            @foreach (var (node, e) in _s.Env)
+            {
+                <p>@node: @e.TempC.ToString("0.#") °C · @e.Humidity.ToString("0.#") % · @e.Lux.ToString("0") lux</p>
+            }
+            @foreach (var (node, d) in _s.Door) { <p>Cửa @node: @(d.Open ? "Mở" : "Đóng")</p> }
+            @if (_s.Env.Count + _s.Door.Count == 0) { <p>Chưa có số liệu</p> }
+            @foreach (var (src, up) in _s.Online) { <small><span class="dot @(up ? "up" : "down")"></span>@src </small> }
+        </div>
+        <div class="card">
+            <h3>Đèn / quạt</h3>
+            <p>
+                <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button>
+                <button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
+            </p>
+            @foreach (var (id, name) in Devs)
+            {
+                var on = _s.Devices.TryGetValue(id, out var d) && d.On;
+                <p>@name: @(on ? "Đang bật" : "Đang tắt")
+                    <button class="btn" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button></p>
+            }
+        </div>
+    </div>
 }
 
-<div class="grid">
-    <div class="card occ @_s.Occupancy">
-        <h3>Hiện diện</h3>
-        <strong>@_s.Occupancy</strong>
-        <p>@Note(_s.Occupancy)</p>
-        <p>Số người: @_s.PersonCount</p>
+<div class="card">
+    <div class="camhead">
+        <h3>Camera</h3>
+        <label class="switch" title="Bật/tắt bộ AI">
+            <input type="checkbox" checked="@(Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting)"
+                   disabled="@Ai.Busy" @onchange="ToggleAi" />
+            <span class="slider"></span>
+        </label>
+        <span>AI: @AiText</span>
     </div>
-    <div class="card">
-        <h3>Môi trường</h3>
-        @foreach (var (node, e) in _s.Env)
-        {
-            <p>@node: @e.TempC.ToString("0.#") °C · @e.Humidity.ToString("0.#") % · @e.Lux.ToString("0") lux</p>
-        }
-        @if (_s.Env.Count == 0) { <p>Chưa có số liệu</p> }
+    @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Error)
+    {
+        <pre class="err logtail">@string.Join("\n", Ai.LogTail)</pre>
+    }
+    <div class="cam-wrap">
+        <div class="cam-view">
+            @* JS thuần để Blazor re-render không đụng trạng thái hiện/ẩn của luồng. *@
+            <img id="cam-img" alt="Luồng camera" src="@Url" style="width:100%;display:block"
+                 onload="document.getElementById('cam-err').style.display='none'"
+                 onerror="this.style.display='none';document.getElementById('cam-err').style.display='block'" />
+            <div id="cam-err" style="display:none">
+                <p>Chưa có luồng camera. Bật công tắc AI ở trên.</p>
+                <button class="btn" onclick="var i=document.getElementById('cam-img');document.getElementById('cam-err').style.display='none';i.style.display='block';i.src='@Url'+'?t='+Date.now()">Thử lại</button>
+            </div>
+        </div>
+        <div class="cam-side">
+            <h3>Đang thấy</h3>
+            @if (_s?.Persons is { Count: > 0 })
+            {
+                <table>
+                    <thead><tr><th>ID</th><th>Vùng</th><th>Tư thế</th></tr></thead>
+                    <tbody>
+                    @foreach (var p in _s.Persons)
+                    {
+                        <tr><td>@p.TrackId</td><td>@Zone(p.Zone)</td><td>@Posture(p.Posture)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            else { <p>Không thấy ai</p> }
+        </div>
     </div>
-    <div class="card">
-        <h3>Cửa</h3>
-        @foreach (var (node, d) in _s.Door) { <p>@node: @(d.Open ? "Mở" : "Đóng")</p> }
-        @if (_s.Door.Count == 0) { <p>Chưa có số liệu</p> }
-    </div>
-    <div class="card">
-        <h3>Chế độ</h3>
-        <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button>
-        <button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
-    </div>
-    <div class="card">
-        <h3>Thiết bị</h3>
-        @foreach (var (id, name) in Devs)
-        {
-            var on = _s.Devices.TryGetValue(id, out var d) && d.On;
-            <p>@name: @(on ? "Đang bật" : "Đang tắt")
-                <button class="btn" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button></p>
-        }
-    </div>
-    <div class="card">
-        <h3>Nguồn dữ liệu</h3>
-        @foreach (var (src, up) in _s.Online) { <p><span class="dot @(up ? "up" : "down")"></span>@src: @(up ? "online" : "offline")</p> }
-        @if (_s.Online.Count == 0) { <p>Chưa có nguồn nào báo</p> }
-    </div>
+</div>
+
+<div class="card">
+    <h3>Cảnh báo</h3>
+    @if (_a is null) { <p class="err">Không kết nối được Hub</p> }
+    else if (_a.Count == 0) { <p>Chưa có cảnh báo</p> }
+    @foreach (var x in _a ?? [])
+    {
+        <div class="alert-row">
+            <small>@x.RaisedAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</small>
+            @(x.CancelledAt is null ? "Đang hiệu lực" : $"Đã hủy lúc {x.CancelledAt.Value.ToLocalTime():HH:mm:ss}: {Why(x.Reason)}")
+            · Phản hồi: @(x.Feedback switch { "Correct" => "Đúng", "Wrong" => "Sai", _ => "chưa có" })
+            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, true)">Đúng</button>
+            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, false)">Sai</button>
+        </div>
+    }
 </div>
 @if (_msg is not null) { <p class="err">@_msg</p> }
 
 @code {
     static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt")];
     HubSnapshot? _s;
+    List<AlertItem>? _a;
     string? _msg;
     Timer? _t;
+
+    // Luồng MJPEG do trình duyệt tải: "localhost" trong cấu hình đổi thành máy đang mở trang (điện thoại).
+    string Url => (Cfg["Camera:StreamUrl"] ?? "http://localhost:8090/stream.mjpg").Replace("localhost", new Uri(Nav.Uri).Host);
+    bool HubUp => Launcher.Status is not SmartHomeAI.Dashboard.Services.HubStatus.Failed && _s is not null;
+    string HubText => _s is null && Launcher.Status != SmartHomeAI.Dashboard.Services.HubStatus.Failed
+        ? "đang kiểm tra / khởi động..."
+        : Launcher.Status switch
+        {
+            SmartHomeAI.Dashboard.Services.HubStatus.Started => "đã tự khởi động",
+            SmartHomeAI.Dashboard.Services.HubStatus.Failed => "không chạy được: " + Launcher.Detail,
+            _ => _s is null ? "không phản hồi" : "đang chạy",
+        };
+    string AiText => Ai.State switch
+    {
+        SmartHomeAI.Dashboard.Services.AiState.Running => "đang chạy",
+        SmartHomeAI.Dashboard.Services.AiState.Starting => "đang khởi động...",
+        SmartHomeAI.Dashboard.Services.AiState.Error => "lỗi",
+        _ => "dừng",
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,10 +143,12 @@
         _t = new Timer(async _ => { await Refresh(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
     }
 
-    async Task Refresh() => _s = await Hub.State();
+    async Task Refresh() { _s = await Hub.State(); _a = await Hub.Alerts(); }
     async Task Mode(bool auto) => await Act(Hub.SetMode(auto));
     async Task Dev(string id, bool on) => await Act(Hub.SetDevice(id, on));
     async Task Act(Task<bool> call) { _msg = await call ? null : "Gửi lệnh thất bại"; await Refresh(); }
+    async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
+    async Task ToggleAi(ChangeEventArgs e) { await Ai.SetEnabled(e.Value is true); }
 
     static string Note(string o) => o switch
     {
@@ -78,6 +157,24 @@
         "ExitPending" => "Đang xác minh người vừa ra ngoài",
         "AwayConfirmed" => "Đã xác nhận nhà vắng",
         _ => "Chưa đủ dữ liệu để kết luận",
+    };
+
+    static string Why(string? r) => r switch
+    {
+        "PersonReturned" => "người đã về",
+        "DevicesOff" => "thiết bị đã tắt",
+        "DataLost" => "mất dữ liệu camera",
+        _ => "không rõ lý do",
+    };
+
+    static string Zone(string z) => z switch
+    {
+        "livingroom" => "Phòng khách", "sofa" => "Sofa", "door" => "Cửa", "other_exit" => "Lối sang khu khác", _ => z,
+    };
+
+    static string Posture(string p) => p switch
+    {
+        "standing" => "Đứng", "sitting" => "Ngồi", "lying" => "Nằm", "moving" => "Đi lại", _ => "Chưa rõ",
     };
 
     public void Dispose() => _t?.Dispose();

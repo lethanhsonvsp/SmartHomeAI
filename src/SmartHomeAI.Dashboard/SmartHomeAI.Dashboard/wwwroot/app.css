@@ -68,3 +68,20 @@ h1:focus {
 .dot.up { background: #2e9e4f; } .dot.down { background: #b00020; }
 .occ.Occupied { background: #d7f2dd; } .occ.OtherArea { background: #dcebfa; }
 .occ.ExitPending { background: #fff0c2; } .occ.AwayConfirmed { background: #f7d4d4; } .occ.Unknown { background: #e6e6e6; }
+.hubline { margin: 0 0 .75rem; }
+.cam-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.cam-view { flex: 2 1 280px; min-width: 0; }
+.cam-side { flex: 1 1 180px; }
+.camhead { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.camhead h3 { margin: 0; }
+.logtail { white-space: pre-wrap; font-size: .8rem; font-weight: normal; }
+.alert-row { padding: .4rem 0; border-top: 1px solid #ddd; }
+.alert-row small { display: block; color: #666; }
+.btn { min-height: 44px; }
+.switch { position: relative; display: inline-block; width: 52px; height: 28px; margin: 0; }
+.switch input { opacity: 0; width: 100%; height: 100%; position: absolute; margin: 0; cursor: pointer; z-index: 1; }
+.slider { position: absolute; inset: 0; background: #aaa; border-radius: 28px; transition: .2s; }
+.slider::before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.switch input:checked + .slider { background: #2e9e4f; }
+.switch input:checked + .slider::before { transform: translateX(24px); }
+.switch input:disabled + .slider { opacity: .5; }
