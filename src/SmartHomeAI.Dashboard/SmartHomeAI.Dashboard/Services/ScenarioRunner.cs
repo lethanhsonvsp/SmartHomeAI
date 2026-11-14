@@ -4,14 +4,17 @@ using System.Text.RegularExpressions;
 
 namespace SmartHomeAI.Dashboard.Services;
 
-public record Scenario(string Code, string Title, string? Description, double DurationSec, string[] Expect, string[] Requires);
+public record Scenario(string Code, string Title, string? Description, double DurationSec, string[] Expect, string[] Requires, string Group);
 public enum ScenarioState { Idle, Running, Done, Error }
 
 /// <summary>Chạy một kịch bản `python -m sim run CODE --speed N` mỗi lần. Lệnh từ Sim:*; mã và tốc độ chỉ nhận khi nằm trong danh sách đã lấy.</summary>
 public partial class ScenarioRunner : IHostedService
 {
-    public static readonly int[] Speeds = [1, 5, 20, 60];
+    public static readonly int[] Speeds = [1, 2, 5, 10];
+    public const int DefaultSpeed = 5;
+    public const string SpeedNote = "Hub tính thời gian thật: tốc độ cao có thể làm hệ thống không kịp phản ứng; dùng 1x để thấy đúng hành vi thật";
     [GeneratedRegex("^[A-Z]{1,2}[0-9]{2}$")] private static partial Regex CodeRx();
+    [GeneratedRegex("^SC[0-9]{2}$")] private static partial Regex ScRx();
 
     readonly IConfiguration _cfg;
     readonly SimRunner _sim;
@@ -27,6 +30,7 @@ public partial class ScenarioRunner : IHostedService
     public DateTime StartedAt { get; private set; }
     public double EstSec { get; private set; }
     public string? Error { get; private set; }
+    public string? Note { get; private set; }
     public string[] LogTail { get { lock (_tail) return [.. _tail]; } }
     public bool Running => State == ScenarioState.Running;
     public bool AiBlocks => _ai.State is AiState.Running or AiState.Starting;
@@ -56,10 +60,27 @@ public partial class ScenarioRunner : IHostedService
                 e.GetProperty("code").GetString()!, e.GetProperty("title").GetString() ?? "",
                 e.TryGetProperty("description", out var d) ? d.GetString() : null,
                 e.TryGetProperty("durationSec", out var s) ? s.GetDouble() : 0,
-                Arr(e, "expect"), Arr(e, "requires"))).Where(x => CodeRx().IsMatch(x.Code))];
+                Arr(e, "expect"), Arr(e, "requires"), "Thực tế (R)"))
+                .Where(x => CodeRx().IsMatch(x.Code) && x.Code.StartsWith('R'))];
+            // `sim list --json` chỉ có R; SC lấy từ `sim list` (chỉ có mã). N, S là bộ test chống nhiễu nên bỏ qua.
+            var sc = await Plain(root);
+            List = [.. sc.Where(c => !List.Any(x => x.Code == c)).Select(c => new Scenario(c, "Kịch bản cơ bản " + c, "Kịch bản kiểm tra cơ bản " + c, 0, [], ["p100"], "Cơ bản (SC)")), .. List];
             ListError = null;
         }
         catch (Exception e) { ListError = e.Message; }
+    }
+
+    async Task<string[]> Plain(string root)
+    {
+        try
+        {
+            using var p = Process.Start(Repo.Psi(Py, "-m sim list", root, true))!;
+            var outT = p.StandardOutput.ReadToEndAsync(); _ = p.StandardError.ReadToEndAsync();
+            using var cts = new CancellationTokenSource(15000);
+            try { await p.WaitForExitAsync(cts.Token); } catch (OperationCanceledException) { p.Kill(true); return []; }
+            return p.ExitCode != 0 ? [] : [.. (await outT).Split((char[])[' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries).Where(c => ScRx().IsMatch(c)).Distinct()];
+        }
+        catch (Exception) { return []; }
     }
 
     static string[] Arr(JsonElement e, string k) => e.TryGetProperty(k, out var a) && a.ValueKind == JsonValueKind.Array ? [.. a.EnumerateArray().Select(x => x.GetString() ?? "")] : [];
@@ -81,10 +102,10 @@ public partial class ScenarioRunner : IHostedService
         try
         {
             // Bật mô phỏng mà kịch bản cần (và chờ chúng nối broker) trước khi phát.
-            var started = false;
-            if (sc.Requires.Contains("p100") && !_sim.Plug.On) { _sim.Plug.Set(true); started = true; }
-            if (sc.Requires.Contains("esp") && !_sim.Esp.On) { _sim.Esp.Set(true); started = true; }
-            if (started) await Task.Delay(2000);
+            // Kịch bản tự phát cảm biến; ESP32 giả sẽ đè lux/nhiệt độ mặc định nên tắt và không bật lại ("esp" trong requires bị bỏ qua).
+            Note = null;
+            if (_sim.Esp.On) { _sim.Esp.Set(false); Note = "Đã tắt ESP32 giả trong lúc chạy kịch bản vì kịch bản tự phát dữ liệu cảm biến"; Add(Note); }
+            if (sc.Requires.Contains("p100") && !_sim.Plug.On) { _sim.Plug.Set(true); await Task.Delay(2000); }
             if (_stopped) return null;
             var root = Repo.Root(_cfg);
             var p = Process.Start(Repo.Psi(Py, $"-u -m sim run {code} --speed {speed}", root, true))!;
