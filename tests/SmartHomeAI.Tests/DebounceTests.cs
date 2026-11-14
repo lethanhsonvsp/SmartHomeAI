@@ -78,11 +78,11 @@ public class DebounceTests
     [Fact] public void D_LyingShortWaits_Enough_TurnsOn()
     {
         var e = E();
-        var d = e.Diagnose(Sofa(lying: S(8))).Single(x => x.DeviceId == "fan");
+        var d = e.Diagnose(Sofa(lying: S(2))).Single(x => x.DeviceId == "fan");
         Assert.Equal(DiagnosisCode.LyingNotLongEnough, d.Code);
-        Assert.Equal((8.0, 20.0), ((double)d.Params["seconds"]!, (double)d.Params["need"]!));
-        Assert.Empty(e.Evaluate(Sofa(lying: S(8))));
-        Assert.Single(e.Evaluate(Sofa(lying: S(20))));
+        Assert.Equal((2.0, 5.0), ((double)d.Params["seconds"]!, (double)d.Params["need"]!));
+        Assert.Empty(e.Evaluate(Sofa(lying: S(2))));
+        Assert.Single(e.Evaluate(Sofa(lying: S(5))));
     }
 
     [Fact] public void E_SeventhAutoChange_Locked_ManualUnlocks()

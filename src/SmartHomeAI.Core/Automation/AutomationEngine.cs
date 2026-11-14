@@ -20,7 +20,7 @@ public record AutomationOptions
     /// <summary>No auto right after start-up, so devices can report their state first.</summary>
     public TimeSpan StartupGrace { get; init; } = TimeSpan.FromSeconds(30);
     /// <summary>The person must lie on the sofa continuously this long before the fan turns on (needs AutomationInput.LyingFor).</summary>
-    public TimeSpan SofaLyingMin { get; init; } = TimeSpan.FromSeconds(20);
+    public TimeSpan SofaLyingMin { get; init; } = TimeSpan.FromSeconds(5);
     /// <summary>Hub: minimum gap between any two commands to the same device (relay protection); extra ones are merged, the last one is sent.</summary>
     public TimeSpan MinCommandInterval { get; init; } = TimeSpan.FromSeconds(3);
     /// <summary>Hub: minimum time a device stays on / off between two AUTO state changes. Manual and alert commands are exempt.</summary>

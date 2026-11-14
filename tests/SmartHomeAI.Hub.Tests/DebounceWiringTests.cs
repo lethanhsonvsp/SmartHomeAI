@@ -93,18 +93,18 @@ public class DebounceWiringTests : IDisposable
     }
 
     [Fact]
-    public void D_Lying8sWaits_20sTurnsOn()
+    public void D_Lying2sWaits_5sTurnsOn()
     {
         Start(new AutomationOptions { StartupGrace = TimeSpan.Zero });
         Env(30, 100);
         Person("sofa", "lying");
-        _t.Advance(TimeSpan.FromSeconds(8));
+        _t.Advance(TimeSpan.FromSeconds(2));
         Person("sofa", "lying");
         Assert.Equal(0, Sets("fan"));
-        Assert.Contains("Quạt trần chưa bật: mới nằm ở sofa 0 s, chờ đủ 20 s", Msgs()); // written once, when the reason first appears
-        _t.Advance(TimeSpan.FromSeconds(8));
+        Assert.Contains("Quạt trần chưa bật: mới nằm ở sofa 0 s, chờ đủ 5 s", Msgs()); // written once, when the reason first appears
+        _t.Advance(TimeSpan.FromSeconds(2));
         Person("sofa", "lying");
-        _t.Advance(TimeSpan.FromSeconds(4));
+        _t.Advance(TimeSpan.FromSeconds(2));
         Person("sofa", "lying");
         Assert.Equal(1, Sets("fan"));
     }
