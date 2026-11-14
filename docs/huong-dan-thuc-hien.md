@@ -63,7 +63,7 @@ Cả hai bộ test qua là máy đã sẵn sàng.
 - MATLAB: xuất dữ liệu từ PostgreSQL ra CSV rồi phân tích trong `matlab/`. So luật cố định với luật thích nghi, xuất biểu đồ và bảng cho luận văn.
 
 ### Bước 7. Bảo mật và triển khai (NV08, NV10)
-- Đóng `allow_anonymous` trong `infra/mosquitto/mosquitto.conf`, thêm tài khoản MQTT. Thêm xác thực cho API, sao lưu PostgreSQL.
+- MQTT và API: Production bắt buộc tài khoản MQTT và `Api__Key` (đã làm trong Hub, dùng `mosquitto.secure.conf`). Còn lại: thử với Hub và ESP32 thật (firmware phải có mật khẩu MQTT), sao lưu PostgreSQL.
 - Nâng gói Blazor đang có cảnh báo lỗ hổng NU1903 khi build.
 - Triển khai bằng systemd: dùng `infra/systemd/smarthome-hub.service` và `smarthome-ai.service` (sửa đường dẫn và user cho đúng máy), rồi `systemctl enable --now`.
 - Thử lỗi: mất MQTT, mất camera (SC10), mất Internet, khởi động lại server; đo CPU, RAM khi chạy AI và độ trễ từ cảm biến đến ổ cắm.
@@ -97,6 +97,6 @@ Chưa có hoặc chưa kiểm:
 
 Lưu ý khi chạy Hub: `dotnet run` dùng cổng trong `launchSettings.json` (5002), không phải `ASPNETCORE_URLS`. Chuỗi kết nối PostgreSQL mặc định trỏ cổng 5432; máy đã có PostgreSQL khác thì đặt `POSTGRES_PORT` cho compose và ghi đè `ConnectionStrings__Postgres`.
 
-Bật bảo mật: sao `.env.example` thành `.env`, điền mật khẩu, chạy `infra/mosquitto/make-passwd.sh`, rồi `docker compose --profile secure up -d mosquitto-secure` (cổng 1884). Hub dùng `Mqtt__User`, `Mqtt__Password`, `Api__Key`; sim và ai dùng `--user`, `--password`.
+Bật bảo mật: sao `.env.example` thành `.env`, điền mật khẩu, chạy `infra/mosquitto/make-passwd.sh`, rồi `docker compose --profile secure up -d mosquitto-secure` (cổng 1884). Hub dùng `Mqtt__User`, `Mqtt__Password`, `Api__Key` (ngoài môi trường Development thiếu một trong ba thì Hub không khởi động; đặt trong `/etc/smarthome/hub.env`, unit systemd đọc tệp này và chỉ nghe `127.0.0.1:5080`; chuỗi PostgreSQL chỉ có sẵn ở `appsettings.Development.json`, Production đặt `ConnectionStrings__Postgres`); sim và ai dùng `--user`, `--password`.
 
 Thời gian trong Hub (xác minh vắng, quá hạn dữ liệu, cảnh báo) cấu hình ở mục `Occupancy` và `Alerts` của `appsettings.json`. Các con số mặc định là giá trị tạm, chỉnh theo dữ liệu thật.

@@ -30,7 +30,7 @@ Python AI chỉ **quan sát**, gửi sự kiện qua MQTT. Hub (C#) giữ trạn
 `env`: SHT30 (nhiệt độ, độ ẩm) và BH1750 (lux). `door`: MC-38. Chưa gán ESP nào mang cảm biến nào; chốt khi có phần cứng.
 
 ## Cảnh báo (Hub phát)
-`{id}` dạng `alert-N`, đếm lại từ 1 sau khi Hub khởi động lại.
+`{id}` dạng `alert-{yyMMddHHmmss}-N`: tiền tố là giờ Hub khởi động, nên mã không trùng sau khi khởi động lại.
 - `home/alert/{id}`: `{"ts","id","level":"first"|"reminder","devices_on":["light","fan"]}`. Mỗi lần phát, Hub cũng gửi `home/sensor/esp1/buzzer/set` với `on:true`.
 - `home/alert/{id}/cancel`: `{"ts","id","reason":"person_returned"|"devices_off"|"data_lost"}`. Hub gửi buzzer `on:false`.
 - Tự tắt thiết bị (mặc định tắt, bật bằng cấu hình `Alerts`): lệnh `home/device/{id}/set` với `source:"alert"`, `on:false`.
@@ -75,5 +75,5 @@ Python AI chỉ **quan sát**, gửi sự kiện qua MQTT. Hub (C#) giữ trạn
 
 ## Chưa chốt
 - Cảm biến nào gắn ESP nào.
-- Xác thực MQTT (hiện `allow_anonymous true`, chỉ dùng dev).
+- Xác thực MQTT: `mosquitto.conf` (`allow_anonymous true`) chỉ dùng dev; Production dùng `mosquitto.secure.conf` và Hub bắt buộc `Mqtt__User`, `Mqtt__Password`.
 - Hệ tọa độ vùng camera, thuộc NV01.
