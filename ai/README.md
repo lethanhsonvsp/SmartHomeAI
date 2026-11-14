@@ -35,3 +35,7 @@ Cùng tiến trình mở HTTP ở `--stream-port` (mặc định 8090, `0` = t�
 - Transition phát khi vùng mới ổn định 3 khung; `direction` suy từ cặp vùng (phòng -> door/other_exit = out, ngược lại = in).
 - RTSP mất luồng: publish `camera_ok:false` và thử mở lại mỗi 2 s.
 - `conf` là độ tin cậy detector, chưa hiệu chuẩn.
+
+
+## Chạy từ gốc repo
+`ai/run.sh --source 0 --detector pose --zones ai/config/zones.example.json --host localhost --stream-port 8090` (đặt PYTHONPATH giúp; chạy `python -m smarthome_ai` trực tiếp từ gốc repo sẽ báo "No module named smarthome_ai").
