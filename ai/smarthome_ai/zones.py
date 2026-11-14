@@ -63,3 +63,10 @@ class Zones:
             if _inside(pt, poly):
                 return name
         return None
+
+    def zone_for(self, box, posture: str) -> str | None:
+        """lying/sitting: tâm hộp (chân người nằm chạm đáy khung, trượt khỏi sofa); còn lại: điểm chân, dự phòng tâm."""
+        c = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+        if posture in ("lying", "sitting"):
+            return self.zone_of(c)
+        return self.zone_of(((box[0] + box[2]) / 2, box[3])) or self.zone_of(c)

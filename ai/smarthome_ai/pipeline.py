@@ -38,8 +38,7 @@ def run(source, detector, zones, pub, aspect=16 / 9, detect_fps=4.0, state_hz=1.
                 speed = ((c[0] - tr.prev_center[0]) ** 2 + (c[1] - tr.prev_center[1]) ** 2) ** 0.5 / h / (t - tr.prev_t)
             raw = pos.classify(tr.box, speed, aspect, tr.det.keypoints)
             posture = pos.smooth(tr.postures, raw)
-            foot = ((tr.box[0] + tr.box[2]) / 2, tr.box[3])
-            zone = zones.zone_of(foot) or zones.zone_of(c)
+            zone = zones.zone_for(tr.box, posture)
             ch = transitions.step(tr, zone, stable_frames)
             if ch:
                 pub.send("transition", {"ts": now_iso(), "track_id": tr.id, "from_zone": ch[0], "to_zone": ch[1],

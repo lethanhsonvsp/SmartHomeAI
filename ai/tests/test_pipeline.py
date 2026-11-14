@@ -80,3 +80,25 @@ def test_fake_pipeline_end_to_end():
     trans = [p for t, p, _ in mq.sent if t.endswith("transition")]
     assert [(x["from_zone"], x["to_zone"], x["direction"]) for x in trans] == [("livingroom", "door", "out")]
     # run() đã kiểm schema từng payload qua Publisher.send; sai sẽ ném ValueError
+
+
+BIG = (0.35, 0.43, 0.65, 0.97)  # tâm (0.5, 0.70) trong sofa, chân (0.5, 0.97) ngoài sofa
+
+
+def test_zone_for_posture():
+    assert ZONES.zone_for(BIG, "lying") == "sofa"
+    assert ZONES.zone_for(BIG, "sitting") == "sofa"
+    assert ZONES.zone_for(BIG, "standing") == "livingroom"
+    assert ZONES.zone_for(BIG, "moving") == "livingroom"
+
+
+def test_posture_change_no_transition():
+    class T:
+        zone = pending_zone = None
+        pending_n = 0
+    t = T()
+    z = lambda p: ZONES.zone_for(BIG, p)
+    assert transitions.step(t, z("standing")) is None
+    out = [transitions.step(t, z("lying")) for _ in range(3)]
+    assert t.zone == "sofa" and out[-1] == ("livingroom", "sofa")
+    assert transitions.direction("livingroom", "sofa") == "unknown"
