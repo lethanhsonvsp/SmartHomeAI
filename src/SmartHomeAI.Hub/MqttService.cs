@@ -2,7 +2,7 @@ using MQTTnet;
 
 namespace SmartHomeAI.Hub;
 
-public class MqttService(MessageRouter router, IConfiguration cfg, ILogger<MqttService> logger) : BackgroundService
+public class MqttService(MessageRouter router, MqttBus bus, IConfiguration cfg, ILogger<MqttService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -15,6 +15,7 @@ public class MqttService(MessageRouter router, IConfiguration cfg, ILogger<MqttS
             catch (Exception ex) { logger.LogError(ex, "Handler failed for {Topic}", e.ApplicationMessage.Topic); }
             return Task.CompletedTask;
         };
+        bus.Client = client;
         var opts = new MqttClientOptionsBuilder().WithTcpServer(host, port).WithClientId("smarthome-hub").Build();
         var sub = new MqttClientSubscribeOptionsBuilder().WithTopicFilter("home/#", MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce).Build();
 

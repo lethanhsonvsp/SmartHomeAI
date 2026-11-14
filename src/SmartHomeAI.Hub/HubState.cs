@@ -1,3 +1,4 @@
+using SmartHomeAI.Core.Automation;
 using SmartHomeAI.Core.Occupancy;
 
 namespace SmartHomeAI.Hub;
@@ -6,7 +7,7 @@ public record EnvReading(DateTimeOffset Ts, double TempC, double Humidity, doubl
 public record DeviceReading(DateTimeOffset Ts, bool On);
 
 /// <summary>Latest-value store; one lock guards it and the (non-thread-safe) OccupancyEngine.</summary>
-public class HubState(OccupancyEngine engine)
+public class HubState(OccupancyEngine engine, AutomationEngine automation)
 {
     readonly object _gate = new();
     readonly Dictionary<string, EnvReading> _env = [];
@@ -14,6 +15,8 @@ public class HubState(OccupancyEngine engine)
     readonly Dictionary<string, DeviceReading> _devices = [];
     readonly Dictionary<string, bool> _online = [];
     OccupancyState? _last;
+    IReadOnlyList<Person> _persons = [];
+    bool _auto = true;
 
     /// <summary>Applies a message; returns the new occupancy state if it changed since last call.</summary>
     public OccupancyState? Apply(Msg m)
@@ -26,7 +29,8 @@ public class HubState(OccupancyEngine engine)
                 case DoorMsg d: _door[d.Node] = (d.Ts, d.Door.Open); engine.OnDoor(d.Door); break;
                 case StatusMsg s: _online[s.Source] = s.Status.Online; if (s.Source == "ai") engine.OnAiStatus(s.Status); break;
                 case DeviceStateMsg d: _devices[d.Device] = new(d.Ts, d.On); break;
-                case AiStateMsg a: engine.OnAiState(a.State); break;
+                case DeviceSetMsg { Source: "manual" } c: automation.OnManualCommand(c.Device, c.On); break;
+                case AiStateMsg a: _persons = a.State.Persons; engine.OnAiState(a.State); break;
                 case AiTransitionMsg t: engine.OnTransition(t.Transition); break;
             }
             return Changed();
@@ -35,6 +39,20 @@ public class HubState(OccupancyEngine engine)
 
     /// <summary>Time alone can change occupancy (stale data, verification elapsed).</summary>
     public OccupancyState? Tick() { lock (_gate) return Changed(); }
+
+    public bool Auto { get { lock (_gate) return _auto; } set { lock (_gate) _auto = value; } }
+
+    /// <summary>Auto commands for the current state; empty in Manual mode.</summary>
+    public IReadOnlyList<DeviceCommand> Automate()
+    {
+        lock (_gate)
+        {
+            if (!_auto) return [];
+            var latest = _env.Values.OrderByDescending(e => e.Ts).FirstOrDefault();
+            bool On(string id) => _devices.TryGetValue(id, out var d) && d.On;
+            return automation.Evaluate(new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan")));
+        }
+    }
 
     OccupancyState? Changed()
     {
@@ -49,6 +67,7 @@ public class HubState(OccupancyEngine engine)
         lock (_gate)
             return new
             {
+                mode = _auto ? "auto" : "manual",
                 occupancy = engine.State.ToString(),
                 env = new Dictionary<string, EnvReading>(_env),
                 door = _door.ToDictionary(k => k.Key, k => new { ts = k.Value.Ts, open = k.Value.Open }),
