@@ -12,6 +12,7 @@ builder.Services.AddSingleton(sp => new AutomationEngine(sp.GetRequiredService<T
 builder.Services.AddSingleton(sp => new AlertManager(sp.GetRequiredService<TimeProvider>(),
     builder.Configuration.GetSection("Alerts").Get<AlertOptions>()));
 builder.Services.AddSingleton(new AlertWiring(builder.Configuration.GetSection("Alerts:AutoOffAllowed").Get<string[]>() ?? []));
+builder.Services.AddSingleton(sp => new HistoryStore(sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<HubState>();
 builder.Services.AddSingleton<MqttBus>();
 builder.Services.AddSingleton<IMqttPublisher>(sp => sp.GetRequiredService<MqttBus>());
@@ -33,6 +34,9 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/api/state", (HubState s) => Results.Json(s.Snapshot()));
+app.MapGet("/api/history", (string? minutes, HubState s) =>
+    HistoryStore.ParseMinutes(minutes) is { } m ? Results.Json(s.History.Query(m))
+        : Results.BadRequest(new { error = "minutes must be an integer > 0" }));
 var write = app.MapGroup("/api").AddEndpointFilterFactory(ApiKey.Filter);
 write.MapPost("/mode", (ModeRequest r, HubState s) => { s.Auto = r.Auto; return Results.Json(new { auto = r.Auto }); });
 write.MapPost("/device/{id}", (string id, DeviceRequest r, MessageRouter router) =>

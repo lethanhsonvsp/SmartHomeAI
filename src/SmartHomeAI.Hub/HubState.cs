@@ -8,8 +8,9 @@ public record EnvReading(DateTimeOffset Ts, double TempC, double Humidity, doubl
 public record DeviceReading(DateTimeOffset Ts, bool On);
 
 /// <summary>Latest-value store; one lock guards it and the (non-thread-safe) OccupancyEngine.</summary>
-public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts)
+public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts, HistoryStore? history = null)
 {
+    public HistoryStore History { get; } = history ?? new(TimeProvider.System);
     readonly object _gate = new();
     readonly Dictionary<string, EnvReading> _env = [];
     readonly Dictionary<string, (DateTimeOffset Ts, bool Open)> _door = [];
@@ -26,7 +27,7 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
         {
             switch (m)
             {
-                case EnvMsg e: _env[e.Node] = new(e.Ts, e.TempC, e.Humidity, e.Lux); break;
+                case EnvMsg e: _env[e.Node] = new(e.Ts, e.TempC, e.Humidity, e.Lux); History.AddEnv(_env[e.Node]); break;
                 case DoorMsg d: _door[d.Node] = (d.Ts, d.Door.Open); engine.OnDoor(d.Door); break;
                 case StatusMsg s: _online[s.Source] = s.Status.Online; if (s.Source == "ai") engine.OnAiStatus(s.Status); break;
                 case DeviceStateMsg d: _devices[d.Device] = new(d.Ts, d.On); break;
@@ -39,7 +40,15 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
     }
 
     /// <summary>Time alone can change occupancy (stale data, verification elapsed).</summary>
-    public OccupancyState? Tick() { lock (_gate) return Changed(); }
+    public OccupancyState? Tick()
+    {
+        lock (_gate)
+        {
+            var c = Changed();
+            History.SamplePersons(engine.State == OccupancyState.Unknown ? 0 : _persons.Count);
+            return c;
+        }
+    }
 
     public bool Auto { get { lock (_gate) return _auto; } set { lock (_gate) _auto = value; } }
 
@@ -73,6 +82,7 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
         var s = engine.State;
         if (s == _last) return null;
         _last = s;
+        History.AddOccupancy(s.ToString());
         return s;
     }
 
