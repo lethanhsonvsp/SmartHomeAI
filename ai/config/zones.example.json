@@ -1,0 +1,9 @@
+{
+  "_doc": "Đa giác theo tọa độ chuẩn hóa 0-1 trên khung hình (x phải, y xuống). Thứ tự = ưu tiên: điểm nằm trong nhiều đa giác thì lấy cái đứng trước. Số dưới đây là ví dụ, phải vẽ lại theo góc camera thật.",
+  "zones": {
+    "door":       [[0.00, 0.20], [0.15, 0.20], [0.15, 0.95], [0.00, 0.95]],
+    "other_exit": [[0.85, 0.20], [1.00, 0.20], [1.00, 0.95], [0.85, 0.95]],
+    "sofa":       [[0.30, 0.45], [0.70, 0.45], [0.70, 0.80], [0.30, 0.80]],
+    "livingroom": [[0.00, 0.00], [1.00, 0.00], [1.00, 1.00], [0.00, 1.00]]
+  }
+}
