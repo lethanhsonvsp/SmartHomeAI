@@ -11,7 +11,7 @@ Chạy từ gốc repo, dùng `sim/.venv/bin/python -m sim ...` (tùy chọn chu
 
 ## Lệnh
 - `python -m sim list`: liệt kê SC01–SC11.
-- `python -m sim run SC07 --speed 20`: phát kịch bản (AI state/transition, env, door, status), nhanh gấp 20. `--dry`: chỉ kiểm schema, không cần broker. `ts` trong payload là thời gian mô phỏng, nên với `--speed` > 1 sẽ chạy trước đồng hồ thật.
+- `python -m sim run SC07 --speed 20`: phát kịch bản (AI state/transition, env, door, status), nhanh gấp 20. `--dry`: chỉ kiểm schema, không cần broker. `--ts real` (mặc định): `ts` theo đồng hồ thật, các sự kiện cách nhau t/speed giây. `--ts sim`: `ts` cách nhau đúng t giây mô phỏng, nên với `--speed` > 1 sẽ chạy trước đồng hồ thật (dùng khi Hub tính theo `ts` và cần thấy 3 phút vắng thật). Với `real` + speed lớn, bộ đếm thời gian của Hub nếu dựa `ts` sẽ không thấy đủ 3 phút.
 - `python -m sim esp --node esp1 --interval 10`: ESP32 giả, env mỗi 10 s, status retained + LWT, nhận `buzzer/set` (in ra). Gõ `o` hoặc `c` + Enter để mở/đóng cửa (publish door retained).
 - `python -m sim p100`: P100 giả, nghe `home/device/{light,fan}/set`, publish `state` retained, status retained + LWT.
 
@@ -21,4 +21,4 @@ Xem luồng: `mosquitto_sub -t 'home/#' -v`.
 Dạng dữ liệu trong `sim/scenarios.py` (hàm dựng `Event(t, topic, payload, retain)`). Kịch bản chỉ phát sự kiện AI/cảm biến; Hub và `p100` phản ứng. SC09 có thêm một lệnh `manual` giả lập người dùng tắt quạt. SC12 (thói quen) chưa có.
 
 ## Test
-`sim/.venv/bin/python -m pytest sim` (không cần broker): payload mọi kịch bản hợp schema, thời gian không giảm, seq tăng.
+`sim/.venv/bin/python -m pytest sim` từ gốc repo, hoặc `pytest` từ trong `sim/` (có `conftest.py`). Không cần broker, trừ test p100 (tự bỏ qua nếu không có broker): payload mọi kịch bản hợp schema, thời gian không giảm, seq tăng.

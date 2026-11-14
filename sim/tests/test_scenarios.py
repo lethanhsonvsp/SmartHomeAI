@@ -20,3 +20,37 @@ def test_scenario_valid_and_ordered(code):
 def test_bad_payload_rejected():
     with pytest.raises(ValueError):
         validate("home/sensor/esp1/env", {"ts": "2026-11-14T12:00:00Z", "temp_c": 1, "humidity": 120, "lux": 1})
+
+
+def test_ts_real_vs_sim():
+    from datetime import datetime, timezone
+    base = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    span = lambda ev: (datetime.fromisoformat(ev[-1].payload["ts"]) - datetime.fromisoformat(ev[0].payload["ts"])).total_seconds()
+    sim, real = build("SC07", base), build("SC07", base, scale=1 / 20)
+    assert span(sim) == sim[-1].t
+    assert abs(span(real) - sim[-1].t / 20) < 1
+
+
+def test_p100_publishes_state_on_set():
+    """Cần broker localhost:1883; bỏ qua nếu không có."""
+    import json, socket, subprocess, sys, time
+    import paho.mqtt.client as mqtt
+    try:
+        socket.create_connection(("localhost", 1883), 1).close()
+    except OSError:
+        pytest.skip("không có broker")
+    got = []
+    c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="test-p100")
+    c.on_message = lambda _c, _u, m: got.append((m.topic, json.loads(m.payload)))
+    c.connect("localhost", 1883); c.loop_start()
+    c.subscribe("home/device/fan/state")
+    p = subprocess.Popen([sys.executable, "-m", "sim", "p100"], cwd=__import__("pathlib").Path(__file__).resolve().parents[2])
+    try:
+        time.sleep(2)
+        c.publish("home/device/fan/set", json.dumps({"ts": "2026-11-14T12:00:00Z", "on": True, "source": "auto"}), qos=1)
+        c.publish("home/device/fan/set", "không phải json", qos=1)  # không được làm sập
+        time.sleep(2)
+        assert p.poll() is None
+        assert any(t == "home/device/fan/state" and v["on"] is True for t, v in got)
+    finally:
+        p.kill(); p.wait(); c.loop_stop()

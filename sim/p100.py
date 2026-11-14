@@ -1,7 +1,7 @@
 """P100 giả: nghe home/device/{light,fan}/set, giữ trạng thái, publish state retained."""
 import json, time
 
-from .common import connect, now_iso, publish, publish_status
+from .common import connect, now_iso, publish, publish_status, validate
 
 IDS = ("light", "fan")
 
@@ -11,9 +11,14 @@ def run(host="localhost", port=1883):
 
     def on_message(_c, _u, m):
         dev = m.topic.split("/")[2]
-        cmd = json.loads(m.payload)
-        print(f"{dev} -> {'ON' if cmd['on'] else 'OFF'} ({cmd['source']})")
-        publish(c, f"home/device/{dev}/state", {"ts": now_iso(), "on": cmd["on"]}, retain=True)
+        try:
+            cmd = json.loads(m.payload)
+            validate(m.topic, cmd)
+        except ValueError as e:  # JSON hỏng hoặc sai schema: bỏ qua, không làm sập callback
+            print(f"bỏ qua lệnh sai {m.topic}: {e}", flush=True)
+            return
+        print(f"{dev} -> {'ON' if cmd['on'] else 'OFF'} ({cmd['source']})", flush=True)
+        publish(c, f"home/device/{dev}/state", {"ts": now_iso(), "on": cmd["on"]}, retain=True, wait=False)
 
     c.on_message = on_message
     publish_status(c, "home/device/status")

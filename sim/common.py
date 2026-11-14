@@ -53,9 +53,12 @@ def connect(client_id: str, lwt_topic: str | None = None, host="localhost", port
     return c
 
 
-def publish(c, topic: str, payload: dict, retain=False):
+def publish(c, topic: str, payload: dict, retain=False, wait=True):
+    """wait=False bắt buộc trong callback on_message: chờ PUBACK ở luồng mạng sẽ tự khóa."""
     validate(topic, payload)
-    c.publish(topic, json.dumps(payload), qos=1, retain=retain).wait_for_publish(5)
+    info = c.publish(topic, json.dumps(payload), qos=1, retain=retain)
+    if wait:
+        info.wait_for_publish(5)
 
 
 def publish_status(c, topic: str, online=True):

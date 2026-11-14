@@ -1,13 +1,21 @@
 """ESP32 giả: env mỗi interval giây, door khi đổi (gõ o/c + Enter), nhận buzzer/set."""
 import json, random, sys, threading, time
 
-from .common import connect, now_iso, publish, publish_status
+from .common import connect, now_iso, publish, publish_status, validate
 
 
 def run(node="esp1", host="localhost", port=1883, interval=10.0, temp=29.0, lux=200.0):
     base = f"home/sensor/{node}"
     c = connect(f"sim-{node}", f"{base}/status", host, port)
-    c.on_message = lambda _c, _u, m: print("buzzer/set", json.loads(m.payload))
+    def on_message(_c, _u, m):
+        try:
+            cmd = json.loads(m.payload)
+            validate(m.topic, cmd)
+        except ValueError as e:
+            return print(f"bỏ qua lệnh sai {m.topic}: {e}", flush=True)
+        print("buzzer/set", cmd, flush=True)
+
+    c.on_message = on_message
     c.subscribe(f"{base}/buzzer/set", qos=1)
     publish_status(c, f"{base}/status")
     publish(c, f"{base}/door", {"ts": now_iso(), "open": False}, retain=True)

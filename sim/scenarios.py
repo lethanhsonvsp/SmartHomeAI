@@ -122,12 +122,12 @@ SCENARIOS = {f"SC{i:02d}": f for i, f in enumerate(
     [sc01, sc02, sc03, sc04, sc05, sc06, sc07, sc08, sc09, sc10, sc11], 1)}
 
 
-def build(code: str, base: datetime | None = None) -> list[Event]:
-    """Sự kiện của kịch bản; thêm ts = base + t (mặc định: bây giờ UTC)."""
+def build(code: str, base: datetime | None = None, scale: float = 1.0) -> list[Event]:
+    """Sự kiện của kịch bản; thêm ts = base + t*scale (base mặc định: bây giờ UTC)."""
     base = base or datetime.now(timezone.utc)
     b = _B()
     SCENARIOS[code.upper()](b)
     out = b.done()
     for e in out:
-        e.payload = {"ts": (base + timedelta(seconds=e.t)).strftime("%Y-%m-%dT%H:%M:%SZ"), **e.payload}
+        e.payload = {"ts": (base + timedelta(seconds=e.t * scale)).strftime("%Y-%m-%dT%H:%M:%SZ"), **e.payload}
     return out
