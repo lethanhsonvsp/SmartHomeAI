@@ -11,6 +11,10 @@ Nhà thông minh tự chủ: nhận diện hành động, theo dõi hiện diệ
 - `matlab/` — phân tích thực nghiệm.
 - `infra/` — Mosquitto, unit systemd. `docker-compose.yml` chỉ chạy PostgreSQL + Mosquitto.
 
+## Chạy nhanh trên Linux (Debian/Ubuntu)
+    ./run.sh      # cài .NET 10, Python venv, Docker, mô hình pose, dựng mã, bật Mosquitto
+    dotnet run --project src/SmartHomeAI.Dashboard/SmartHomeAI.Dashboard   # mở http://localhost:5037
+
 ## Chạy
     docker compose up -d
     dotnet build
