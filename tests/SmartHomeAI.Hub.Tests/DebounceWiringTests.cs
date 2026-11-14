@@ -108,4 +108,58 @@ public class DebounceWiringTests : IDisposable
         Person("sofa", "lying");
         Assert.Equal(1, Sets("fan"));
     }
+
+    void Dev(string id, bool on) => _r.Handle($"home/device/{id}/state", "{" + Ts + $",\"on\":{(on ? "true" : "false")}}}");
+    void DevStatus(bool online) => _r.Handle("home/device/status", "{" + Ts + $",\"online\":{(online ? "true" : "false")}}}");
+
+    [Fact]
+    public void Sync_OffWithin2sOfOnline_NotManual_AutoStillTurnsOn()
+    {
+        Start(TestOpts.NoWait);
+        DevStatus(true);
+        Dev("light", true); Dev("fan", true); // known on (sync, not manual)
+        _t.Advance(TimeSpan.FromSeconds(2));
+        Dev("light", false); Dev("fan", false);
+        Assert.DoesNotContain(Msgs(), m => m.Contains("ngoài hệ thống"));
+        Assert.Single(Msgs(), m => m.Contains("Ổ cắm kết nối lại"));
+        Env(30, 5);
+        Person("sofa", "lying");
+        Assert.Equal(1, Sets("light"));
+        Assert.Equal(1, Sets("fan"));
+    }
+
+    [Fact]
+    public void Sync_OffAfterWindow_StillManual_BlocksAuto()
+    {
+        Start(TestOpts.NoWait);
+        Dev("fan", true);
+        DevStatus(true);
+        _t.Advance(TimeSpan.FromSeconds(10));
+        Dev("fan", false);
+        Assert.Contains(Msgs(), m => m.Contains("Quạt trần bị tắt ngoài hệ thống"));
+        Env(30, 100);
+        Person("sofa", "lying");
+        Assert.Equal(0, Sets("fan"));
+    }
+
+    [Fact]
+    public void Sync_FirstStateEver_NotManual()
+    {
+        Start(TestOpts.NoWait);
+        Dev("fan", true); // first state seen... here already known from Start (off); new hub below
+        var s = new HubState(new OccupancyEngine(_t), new AutomationEngine(_t, TestOpts.NoWait), new AlertManager(_t), null, new DecisionLog(_t), _t);
+        s.Apply(new DeviceStateMsg(_t.GetUtcNow(), "light", false));
+        Assert.DoesNotContain(s.Decisions.Latest(50), e => e.Message.Contains("ngoài hệ thống"));
+    }
+
+    [Fact]
+    public void Sync_OfflineThenOnlineAgain_LogsEachReconnect()
+    {
+        Start(TestOpts.NoWait);
+        DevStatus(true); DevStatus(true); // repeated online is not a reconnect
+        DevStatus(false); DevStatus(true);
+        Assert.Equal(2, Msgs().Count(m => m.Contains("Ổ cắm kết nối lại")));
+        Dev("fan", true); Dev("fan", false);
+        Assert.DoesNotContain(Msgs(), m => m.Contains("ngoài hệ thống"));
+    }
 }

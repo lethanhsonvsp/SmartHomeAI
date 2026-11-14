@@ -34,7 +34,15 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
             {
                 case EnvMsg e: _env[e.Node] = new(e.Ts, e.TempC, e.Humidity, e.Lux); History.AddEnv(_env[e.Node]); break;
                 case DoorMsg d: _door[d.Node] = (d.Ts, d.Door.Open); engine.OnDoor(d.Door); break;
-                case StatusMsg s: _online[s.Source] = s.Status.Online; if (s.Source == "ai") engine.OnAiStatus(s.Status); break;
+                case StatusMsg s:
+                    var wasOnline = _online.TryGetValue(s.Source, out var o) && o;
+                    _online[s.Source] = s.Status.Online;
+                    if (s.Source == "device" && s.Status.Online && !wasOnline)
+                    {
+                        automation.OnDeviceOnline();
+                        Decisions.Add("device", "Ổ cắm kết nối lại: đồng bộ trạng thái ban đầu (không tính là lệnh tay)");
+                    } if (s.Source == "ai") engine.OnAiStatus(s.Status);
+                    break;
                 case DeviceStateMsg d:
                     if (automation.OnDeviceState(d.Device, d.On))
                     {

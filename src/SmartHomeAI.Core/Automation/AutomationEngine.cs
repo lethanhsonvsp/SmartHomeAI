@@ -15,6 +15,8 @@ public record AutomationOptions
     public string SofaZone { get; init; } = "sofa";
     /// <summary>A device state change not matching a Hub command within this window is a manual (button/app) change.</summary>
     public TimeSpan CommandMatchWindow { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>After a device comes back online it re-reports its initial state; states in this window are sync, not a manual change.</summary>
+    public TimeSpan DeviceSyncWindow { get; init; } = TimeSpan.FromSeconds(5);
     /// <summary>Wait before the 2nd, 3rd... send while the device has not reported state on; sends = length + 1, the last wait ends in "no response".</summary>
     public TimeSpan[] RetrySchedule { get; init; } = [TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(120)];
     /// <summary>No auto right after start-up, so devices can report their state first.</summary>
@@ -57,6 +59,7 @@ public class AutomationEngine(TimeProvider time, AutomationOptions? options = nu
     readonly Dictionary<string, (int Sent, DateTimeOffset Last)> _pending = new();
     readonly Dictionary<string, List<DateTimeOffset>> _changes = new();
     readonly DateTimeOffset _start = time.GetUtcNow();
+    DateTimeOffset _syncUntil = DateTimeOffset.MinValue;
 
     public AutomationOptions Options => _o;
     public IReadOnlyDictionary<string, DateTimeOffset> ManualTimes => _manual;
@@ -76,6 +79,9 @@ public class AutomationEngine(TimeProvider time, AutomationOptions? options = nu
     /// <summary>The Hub published a command (any source); a state change matching it is not a manual change.</summary>
     public void OnHubCommand(string deviceId, bool on) => _lastCmd[deviceId] = (on, time.GetUtcNow());
 
+    /// <summary>The device channel went offline/unknown to online: opens the sync window.</summary>
+    public void OnDeviceOnline() => _syncUntil = time.GetUtcNow() + _o.DeviceSyncWindow;
+
     /// <summary>Device reported its state. True if it changed outside the system (button/app): counted as a manual command.</summary>
     public bool OnDeviceState(string deviceId, bool on)
     {
@@ -84,6 +90,7 @@ public class AutomationEngine(TimeProvider time, AutomationOptions? options = nu
         _reported[deviceId] = on;
         if (on || (_pending.TryGetValue(deviceId, out var p) && Unresponsive(p))) _pending.Remove(deviceId);
         if (!known || prev == on) return false;
+        if (now < _syncUntil || now - _start < _o.StartupGrace) return false; // reconnect sync / stale retained state
         if (_lastCmd.TryGetValue(deviceId, out var c) && c.On == on && now - c.At <= _o.CommandMatchWindow) return false;
         OnManualCommand(deviceId, on);
         return true;
