@@ -19,14 +19,11 @@ else
     @foreach (var x in _a)
     {
         <div class="card">
-            <small>@x.Ts?.ToLocalTime().ToString("dd/MM HH:mm:ss") @x.Kind</small>
-            <p>@x.Message</p>
-            @if (x.Correct is null)
-            {
-                <button class="btn" @onclick="() => Send(x.Id, true)">Đúng</button>
-                <button class="btn" @onclick="() => Send(x.Id, false)">Sai</button>
-            }
-            else { <em>Đã phản hồi: @(x.Correct == true ? "Đúng" : "Sai")</em> }
+            <small>Báo lúc @x.RaisedAt.ToLocalTime().ToString("dd/MM HH:mm:ss")</small>
+            <p>@(x.CancelledAt is null ? "Đang hiệu lực" : $"Đã hủy lúc {x.CancelledAt.Value.ToLocalTime():HH:mm:ss}: {Why(x.Reason)}")</p>
+            <p>Phản hồi: @(x.Feedback switch { "Correct" => "Đúng", "Wrong" => "Sai", _ => "Chưa có" })</p>
+            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, true)">Đúng</button>
+            <button class="btn" disabled="@(x.Feedback != "None")" @onclick="() => Send(x.Id, false)">Sai</button>
         </div>
     }
 }
@@ -42,6 +39,14 @@ else
     }
 
     async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
+
+    static string Why(string? r) => r switch
+    {
+        "PersonReturned" => "người đã về",
+        "DevicesOff" => "thiết bị đã tắt",
+        "DataLost" => "mất dữ liệu camera",
+        _ => "không rõ lý do",
+    };
 
     public void Dispose() => _t?.Dispose();
 }

@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SmartHomeAI.Dashboard;
 
@@ -8,8 +9,11 @@ public record Door(bool Open);
 public record Device(bool On);
 public record HubSnapshot(string Mode, string Occupancy, Dictionary<string, Env> Env, Dictionary<string, Door> Door,
     Dictionary<string, Device> Devices, Dictionary<string, bool> Online);
-// Alert shape is the assumed Hub contract; unknown fields are ignored.
-public record AlertItem(string Id, DateTimeOffset? Ts, string? Kind, string? Message, bool? Correct);
+// Hub /api/alerts is snake_case (raised_at, cancelled_at); reason: PersonReturned|DevicesOff|DataLost|null; feedback: None|Correct|Wrong.
+public record AlertItem(string Id,
+    [property: JsonPropertyName("raised_at")] DateTimeOffset RaisedAt,
+    [property: JsonPropertyName("cancelled_at")] DateTimeOffset? CancelledAt,
+    string? Reason, string Feedback);
 
 /// <summary>Server-side client for the Hub REST API; null/false results mean Hub unreachable or failed.</summary>
 public class HubClient(HttpClient http)

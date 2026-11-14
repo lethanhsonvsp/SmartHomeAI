@@ -66,5 +66,5 @@ h1:focus {
 .err { color: #b00020; font-weight: bold; }
 .dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; margin-right: .4rem; }
 .dot.up { background: #2e9e4f; } .dot.down { background: #b00020; }
-.occ.OCCUPIED { background: #d7f2dd; } .occ.OTHER_AREA { background: #dcebfa; }
-.occ.EXIT_PENDING { background: #fff0c2; } .occ.AWAY_CONFIRMED { background: #f7d4d4; } .occ.UNKNOWN { background: #e6e6e6; }
+.occ.Occupied { background: #d7f2dd; } .occ.OtherArea { background: #dcebfa; }
+.occ.ExitPending { background: #fff0c2; } .occ.AwayConfirmed { background: #f7d4d4; } .occ.Unknown { background: #e6e6e6; }
