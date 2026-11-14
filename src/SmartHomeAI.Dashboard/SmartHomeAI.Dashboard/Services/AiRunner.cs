@@ -35,7 +35,7 @@ public class AiRunner(IConfiguration cfg, ILogger<AiRunner> log) : IHostedServic
             lock (_tail) _tail.Clear();
             var root = Repo.Root(cfg);
             string C(string k, string d) => cfg["Ai:" + k] ?? d;
-            var args = $"--source {C("Source", "0")} --detector {C("Detector", "pose")} --zones {C("Zones", "ai/config/zones.example.json")} --host {C("Host", "localhost")} --stream-port {C("StreamPort", "8090")}";
+            var args = $"--source {C("Source", "0")} --detector {C("Detector", "pose")} {(C("Zones", "") is { Length: > 0 } z ? $"--zones {z} " : "")}--host {C("Host", "localhost")} --stream-port {C("StreamPort", "8090")}";
             State = AiState.Starting; _stopping = false;
             var p = Process.Start(Repo.Psi(Path.Combine(root, "ai/run.sh"), args, root, true))!;
             p.OutputDataReceived += (_, e) => Add(e.Data);

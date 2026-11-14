@@ -19,6 +19,7 @@ builder.Services.AddSingleton<HubLauncher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<HubLauncher>());
 builder.Services.AddSingleton<AiRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<AiRunner>());
+builder.Services.AddSingleton<AiApi>();
 builder.Services.AddSingleton<SimRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SimRunner>());
 var app = builder.Build();
@@ -43,6 +44,7 @@ app.UseAntiforgery();
 app.MapGet("/camera", () => Results.Redirect("/"));
 app.MapGet("/alerts", () => Results.Redirect("/"));
 
+AiApi.Map(app);
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

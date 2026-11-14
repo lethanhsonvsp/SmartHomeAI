@@ -7,6 +7,7 @@
 @inject SmartHomeAI.Dashboard.Services.HubLauncher Launcher
 @inject SmartHomeAI.Dashboard.Services.AiRunner Ai
 @inject SmartHomeAI.Dashboard.Services.SimRunner Sim
+@inject SmartHomeAI.Dashboard.Services.AiApi AiApi
 
 <PageTitle>SmartHomeAI</PageTitle>
 
@@ -49,7 +50,18 @@
         {
             <pre class="err logtail">@string.Join("\n", Ai.LogTail)</pre>
         }
+        <div class="ovl">
+            @{ var up = Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running && _cfg is not null; }
+            @foreach (var (k, n) in Ovl)
+            {
+                var kk = k;
+                <button class="btn @(up && _cfg![kk] ? "on" : "")" disabled="@(!up)" @onclick="() => SetOvl(kk)">@n</button>
+            }
+            <button class="btn" disabled="@(!up)" onclick="zoneEditor.open()">Vẽ lại vùng</button>
+            @if (!up) { <small>AI đang dừng: bật AI để đổi lớp phủ và vẽ vùng.</small> }
+        </div>
         <div class="cam-box">
+            <div id="zed" class="zed" hidden></div>
             <div class="cam-ph">
                 <p>@(Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running ? "Đang chờ luồng camera..." : "Camera tắt. Bật công tắc AI để xem.")</p>
                 @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running)
@@ -173,6 +185,8 @@
 
 @code {
     static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt")];
+    static readonly (string, string)[] Ovl = [("skeleton", "Khung xương"), ("boxes", "Hộp"), ("labels", "Nhãn"), ("zones", "Vùng")];
+    Dictionary<string, bool>? _cfg;
     static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("ch", "Biểu đồ"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
     static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
     HubSnapshot? _s;
@@ -221,11 +235,17 @@
             if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running) _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _lastAi = Ai.State;
         }
+        _cfg = Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running ? await AiApi.GetConfig() : null;
         _s = await Hub.State(); _a = await Hub.Alerts();
         if (_tick++ % 2 == 0) _h = await Hub.History(_min);
         _esp = Sim.Esp.On ? await Sim.EspState() : null;
     }
 
+    async Task SetOvl(string k)
+    {
+        if (_cfg is null) return;
+        if (await AiApi.SetConfig(k, !_cfg[k])) _cfg[k] = !_cfg[k]; else _msg = "Đổi lớp phủ thất bại";
+    }
     async Task SetMin(int m) { _min = m; _h = await Hub.History(m); }
     async Task Mode(bool auto) => await Act(Hub.SetMode(auto));
     async Task Dev(string id, bool on) => await Act(Hub.SetDevice(id, on));
