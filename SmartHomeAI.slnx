@@ -8,6 +8,7 @@
     <Project Path="src/SmartHomeAI.Dashboard/SmartHomeAI.Dashboard/SmartHomeAI.Dashboard.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SmartHomeAI.Hub.Tests/SmartHomeAI.Hub.Tests.csproj" />
     <Project Path="tests/SmartHomeAI.Tests/SmartHomeAI.Tests.csproj" />
   </Folder>
 </Solution>

@@ -86,4 +86,6 @@ Làm lần lượt, mỗi thiết bị một lần, thay đúng phần mô phỏ
 
 ## 6. Tình trạng hiện tại
 
-Xong: khung dự án, hợp đồng MQTT, mô phỏng, Occupancy Engine, Automation Engine (chưa nối vào Hub). Hub nhận MQTT và ghi log đang làm. Chưa có: AI camera, cảnh báo, Dashboard, học thói quen, MATLAB, bảo mật, triển khai. Danh sách đầy đủ ở `docs/nhiem-vu.md`.
+Xong: khung dự án, hợp đồng MQTT, mô phỏng, Occupancy Engine, Automation Engine, Hub nhận MQTT, `GET /api/state` và ghi log PostgreSQL. Automation chưa nối vào Hub (Hub chưa tự gửi lệnh nào). Chưa có: AI camera, cảnh báo, Dashboard, học thói quen, MATLAB, bảo mật, triển khai. Danh sách đầy đủ ở `docs/nhiem-vu.md`.
+
+Lưu ý khi chạy Hub: `dotnet run` dùng cổng trong `launchSettings.json` (5002), không phải `ASPNETCORE_URLS`. Chuỗi kết nối PostgreSQL mặc định trỏ cổng 5432; máy đã có PostgreSQL khác thì ghi đè bằng biến môi trường `ConnectionStrings__Postgres`.
