@@ -30,6 +30,7 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
     public bool Feedback(string id, bool correct)
     {
         if (!state.AlertFeedback(id, correct)) return false;
+        state.Decisions.Add("alert", $"Bạn phản hồi cảnh báo {id}: {(correct ? "đúng" : "sai")}");
         log.AlertFeedback(id, correct);
         return true;
     }
@@ -68,17 +69,31 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
             {
                 case RaiseAlert r:
                     if (r.Level == AlertLevel.First) log.AlertRaised(r.Id, now);
+                    var left = string.Join(", ", r.DevicesOn.Select(DecisionText.DeviceName));
+                    state.Decisions.Add("alert", r.Level == AlertLevel.First
+                        ? $"Cảnh báo {r.Id}: bạn đã rời phòng mà {left} vẫn bật"
+                        : $"Nhắc lại cảnh báo {r.Id}: {left} vẫn bật");
                     bus.Publish($"home/alert/{r.Id}", $"{{\"ts\":\"{ts}\",\"id\":\"{r.Id}\",\"level\":\"{(r.Level == AlertLevel.First ? "first" : "reminder")}\",\"devices_on\":[{string.Join(",", r.DevicesOn.Select(d => $"\"{d}\""))}]}}");
                     bus.Publish("home/sensor/esp1/buzzer/set", $"{{\"ts\":\"{ts}\",\"on\":true}}");
                     break;
                 case CancelAlert c:
                     var reason = c.Reason switch { CancelReason.PersonReturned => "person_returned", CancelReason.DataLost => "data_lost", _ => "devices_off" };
                     log.AlertCancelled(c.Id, now, reason);
+                    state.Decisions.Add("alert", $"Hủy cảnh báo {c.Id}: " + c.Reason switch
+                    {
+                        CancelReason.PersonReturned => "bạn đã quay lại",
+                        CancelReason.DataLost => "mất dữ liệu nhận diện",
+                        _ => "đèn và quạt đã tắt",
+                    });
                     bus.Publish($"home/alert/{c.Id}/cancel", $"{{\"ts\":\"{ts}\",\"id\":\"{c.Id}\",\"reason\":\"{reason}\"}}");
                     bus.Publish("home/sensor/esp1/buzzer/set", $"{{\"ts\":\"{ts}\",\"on\":false}}");
                     break;
                 case AutoOff o:
-                    foreach (var d in o.DeviceIds) SendCommand(d, false, "alert");
+                    foreach (var d in o.DeviceIds)
+                    {
+                        state.Decisions.Add("alert", $"Tự tắt {DecisionText.DeviceName(d)}: bạn rời phòng quá lâu mà vẫn bật", d, false);
+                        SendCommand(d, false, "alert");
+                    }
                     break;
             }
         }

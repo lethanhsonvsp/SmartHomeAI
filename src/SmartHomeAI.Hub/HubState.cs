@@ -8,8 +8,9 @@ public record EnvReading(DateTimeOffset Ts, double TempC, double Humidity, doubl
 public record DeviceReading(DateTimeOffset Ts, bool On);
 
 /// <summary>Latest-value store; one lock guards it and the (non-thread-safe) OccupancyEngine.</summary>
-public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts, HistoryStore? history = null)
+public class HubState(OccupancyEngine engine, AutomationEngine automation, AlertManager alerts, HistoryStore? history = null, DecisionLog? decisions = null)
 {
+    public DecisionLog Decisions { get; } = decisions ?? new(TimeProvider.System);
     public HistoryStore History { get; } = history ?? new(TimeProvider.System);
     readonly object _gate = new();
     readonly Dictionary<string, EnvReading> _env = [];
@@ -30,8 +31,14 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
                 case EnvMsg e: _env[e.Node] = new(e.Ts, e.TempC, e.Humidity, e.Lux); History.AddEnv(_env[e.Node]); break;
                 case DoorMsg d: _door[d.Node] = (d.Ts, d.Door.Open); engine.OnDoor(d.Door); break;
                 case StatusMsg s: _online[s.Source] = s.Status.Online; if (s.Source == "ai") engine.OnAiStatus(s.Status); break;
-                case DeviceStateMsg d: _devices[d.Device] = new(d.Ts, d.On); break;
-                case DeviceSetMsg { Source: "manual" } c: automation.OnManualCommand(c.Device, c.On); break;
+                case DeviceStateMsg d:
+                    if (!_devices.TryGetValue(d.Device, out var old) || old.On != d.On)
+                        Decisions.Add("device", $"{DecisionText.Cap(DecisionText.DeviceName(d.Device))} đã {(d.On ? "bật" : "tắt")}", d.Device, d.On);
+                    _devices[d.Device] = new(d.Ts, d.On); break;
+                case DeviceSetMsg { Source: "manual" } c:
+                    automation.OnManualCommand(c.Device, c.On);
+                    Decisions.Add("manual", $"Bạn {(c.On ? "bật" : "tắt")} {DecisionText.DeviceName(c.Device)} bằng tay, tự động tạm dừng với thiết bị này", c.Device, c.On);
+                    break;
                 case AiStateMsg a: _persons = a.State.Persons; engine.OnAiState(a.State); break;
                 case AiTransitionMsg t: engine.OnTransition(t.Transition); break;
             }
@@ -60,7 +67,9 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
             if (!_auto) return [];
             var latest = _env.Values.OrderByDescending(e => e.Ts).FirstOrDefault();
             bool On(string id) => _devices.TryGetValue(id, out var d) && d.On;
-            return automation.Evaluate(new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan")));
+            AutomationInput input = new(engine.State, _persons, latest?.Lux, latest?.TempC, On("light"), On("fan"));
+            Decisions.Decide(automation.Diagnose(input));
+            return automation.Evaluate(input);
         }
     }
 
@@ -81,6 +90,7 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
     {
         var s = engine.State;
         if (s == _last) return null;
+        Decisions.Add("occupancy", _last is { } p ? $"Hiện diện: {DecisionText.State(p)} → {DecisionText.State(s)}" : $"Hiện diện: {DecisionText.State(s)}");
         _last = s;
         History.AddOccupancy(s.ToString());
         return s;

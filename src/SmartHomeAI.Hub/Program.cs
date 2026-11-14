@@ -13,7 +13,9 @@ builder.Services.AddSingleton(sp => new AlertManager(sp.GetRequiredService<TimeP
     builder.Configuration.GetSection("Alerts").Get<AlertOptions>()));
 builder.Services.AddSingleton(new AlertWiring(builder.Configuration.GetSection("Alerts:AutoOffAllowed").Get<string[]>() ?? []));
 builder.Services.AddSingleton(sp => new HistoryStore(sp.GetRequiredService<TimeProvider>()));
-builder.Services.AddSingleton<HubState>();
+builder.Services.AddSingleton(sp => new DecisionLog(sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton(sp => new HubState(sp.GetRequiredService<OccupancyEngine>(), sp.GetRequiredService<AutomationEngine>(),
+    sp.GetRequiredService<AlertManager>(), sp.GetRequiredService<HistoryStore>(), sp.GetRequiredService<DecisionLog>()));
 builder.Services.AddSingleton<MqttBus>();
 builder.Services.AddSingleton<IMqttPublisher>(sp => sp.GetRequiredService<MqttBus>());
 builder.Services.AddSingleton<MessageRouter>();
@@ -37,6 +39,9 @@ app.MapGet("/api/state", (HubState s) => Results.Json(s.Snapshot()));
 app.MapGet("/api/history", (string? minutes, HubState s) =>
     HistoryStore.ParseMinutes(minutes) is { } m ? Results.Json(s.History.Query(m))
         : Results.BadRequest(new { error = "minutes must be an integer > 0" }));
+app.MapGet("/api/events", (string? limit, HubState s) =>
+    DecisionLog.ParseLimit(limit) is { } n ? Results.Json(s.Decisions.Latest(n).Select(e => new { ts = e.Ts, kind = e.Kind, device = e.Device, on = e.On, message = e.Message }))
+        : Results.BadRequest(new { error = "limit must be an integer in 1..200" }));
 var write = app.MapGroup("/api").AddEndpointFilterFactory(ApiKey.Filter);
 write.MapPost("/mode", (ModeRequest r, HubState s) => { s.Auto = r.Auto; return Results.Json(new { auto = r.Auto }); });
 write.MapPost("/device/{id}", (string id, DeviceRequest r, MessageRouter router) =>
