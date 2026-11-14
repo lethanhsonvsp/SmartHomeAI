@@ -47,7 +47,7 @@ def test_posture_box_and_moving():
     assert posture.classify((0.3, 0.5, 0.7, 0.8), 0, ar) == "lying"
     assert posture.classify((0.4, 0.4, 0.7, 0.8), 0, ar) == "sitting"
     assert posture.classify((0.4, 0.1, 0.5, 0.9), 2.0, ar) == "moving"
-    assert posture.smooth([], "sitting") == "sitting"
+    assert posture.smooth([], "sitting", min_frames=1) == "sitting"
 
 
 def test_posture_keypoints_lying():
@@ -102,3 +102,37 @@ def test_posture_change_no_transition():
     out = [transitions.step(t, z("lying")) for _ in range(3)]
     assert t.zone == "sofa" and out[-1] == ("livingroom", "sofa")
     assert transitions.direction("livingroom", "sofa") == "unknown"
+
+
+def test_smooth_window_warmup_tie():
+    h = []
+    assert [posture.smooth(h, "standing") for _ in range(4)] == ["unknown"] * 3 + ["standing"]
+    h = []
+    for x in ("sitting", "sitting", "lying", "lying"):
+        out = posture.smooth(h, x, prev="sitting")
+    assert out == "sitting"  # hòa 2-2 giữ prev
+    assert posture.smooth(["a", "a", "b"], "b") == "unknown"  # hòa, chưa có prev
+    h = []
+    for _ in range(10):
+        posture.smooth(h, "standing", n=8)
+    assert len(h) == 8
+
+
+def _run_script(script, **kw):
+    mq = FakeMqtt()
+    run(FakeSource(len(script), 4), FakeDetector(script), ZONES, Publisher(client=mq), state_hz=4, **kw)
+    return [p["persons"] for t, p, _ in mq.sent if t.endswith("/state") and p.get("camera_ok")]
+
+
+def test_track_kept_through_gaps_then_expires():
+    d = [{"box": [0.4, 0.1, 0.5, 0.5], "conf": .9}]
+    script = [d] * 5 + [[], []] + [d] + [[]] * 10
+    ps = _run_script(script)
+    assert all(ps[i] for i in range(0, 9))  # khung hụt xen kẽ vẫn có người
+    assert len({x["track_id"] for p in ps[:9] for x in p}) == 1
+    assert ps[-1] == []  # mất > max_missed thì biến mất
+
+
+def test_zone_stable_default_is_6():
+    import inspect
+    assert inspect.signature(run).parameters["stable_frames"].default == 6

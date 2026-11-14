@@ -38,7 +38,8 @@ Cùng tiến trình mở HTTP ở `--stream-port` (mặc định 8090, `0` = t�
 - Detector mặc định vẫn là HOG của OpenCV (không thêm phụ thuộc nặng; ultralytics kéo torch cỡ GB). Kém YOLO, nhất là người nằm. Cắm detector khác qua giao diện `Detector.detect(frame) -> [Detection]` (hộp chuẩn hóa, keypoints COCO-17 tùy chọn).
 - Posture là quy tắc hình học (keypoints nếu có: thân nằm ngang hoặc đầu-vai-hông cùng độ cao = lying, hông ngang gối = sitting, còn lại standing; thiếu khớp thì dùng tỉ lệ hộp; moving theo tốc độ tâm), ngưỡng đoán trong `posture.py`: BASELINE, phải đo bằng video thật.
 - Vùng: đa giác chuẩn hóa 0-1, thứ tự trong file là ưu tiên; điểm xét theo tư thế: lying/sitting dùng tâm hộp, còn lại dùng chân người (giữa cạnh dưới hộp), dự phòng tâm hộp.
-- Transition phát khi vùng mới ổn định 3 khung; `direction` suy từ cặp vùng (phòng -> door/other_exit = out, ngược lại = in).
+- Chống nhiễu: tư thế bỏ phiếu số đông `--posture-window` khung (mặc định 8 ≈ 2 s ở 4 fps); track mới phát `unknown` cho tới khi đủ 4 khung; hòa phiếu giữ tư thế đang phát (chưa có thì `unknown`). Track mất tạm (≤ 8 khung ≈ 2 s) vẫn nằm trong `persons` với tư thế/vùng cuối, hết hạn mới biến mất.
+- Transition phát khi vùng mới ổn định `--zone-stable` khung (mặc định 6 ≈ 1,5 s); `direction` suy từ cặp vùng (phòng -> door/other_exit = out, ngược lại = in).
 - RTSP mất luồng: publish `camera_ok:false` và thử mở lại mỗi 2 s.
 - `conf` là độ tin cậy detector, chưa hiệu chuẩn.
 

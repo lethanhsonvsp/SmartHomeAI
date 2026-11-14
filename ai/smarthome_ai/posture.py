@@ -50,8 +50,12 @@ def classify(box, speed: float, aspect: float = 16 / 9, keypoints=None) -> str:
     return "lying" if ar > LYING_AR else "standing" if ar < STAND_AR else "sitting"
 
 
-def smooth(history: list, new: str, n=5) -> str:
-    """Bỏ phiếu số đông n khung gần nhất để chống nhảy."""
+def smooth(history: list, new: str, n=8, prev: str | None = None, min_frames=4) -> str:
+    """Bỏ phiếu số đông n khung gần nhất. Chưa đủ min_frames -> unknown; hòa phiếu -> giữ tư thế đang phát (prev), chưa có -> unknown."""
     history.append(new)
     del history[:-n]
-    return max(set(history), key=history.count)
+    if len(history) < min_frames:
+        return "unknown"
+    top = max(history.count(x) for x in set(history))
+    win = {x for x in history if history.count(x) == top}
+    return win.pop() if len(win) == 1 else (prev or "unknown")

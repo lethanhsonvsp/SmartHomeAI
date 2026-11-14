@@ -29,6 +29,7 @@ class Track:
     pending_zone: str | None = None
     pending_n: int = 0
     postures: list = field(default_factory=list)
+    posture: str | None = None  # tư thế đang phát, giữ khi track mất tạm
 
 
 class Tracker:

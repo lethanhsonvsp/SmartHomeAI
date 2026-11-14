@@ -24,6 +24,8 @@ def main(argv=None):
     p.add_argument("--script", help="kịch bản JSON cho --detector fake")
     p.add_argument("--detect-fps", type=float, default=4.0)
     p.add_argument("--state-hz", type=float, default=1.0)
+    p.add_argument("--posture-window", type=int, default=8, help="số khung bỏ phiếu tư thế (~2 s ở 4 fps)")
+    p.add_argument("--zone-stable", type=int, default=6, help="số khung vùng mới phải ổn định mới phát transition")
     p.add_argument("--width", type=int, help="độ rộng webcam")
     p.add_argument("--height", type=int, help="độ cao webcam")
     p.add_argument("--stream-port", type=int, default=8090, help="cổng MJPEG; 0 = tắt")
@@ -51,6 +53,7 @@ def main(argv=None):
     pub = Publisher(a.host, a.port, user=a.user, password=a.password)
     try:
         run(src, det, zn, pub, detect_fps=a.detect_fps, state_hz=a.state_hz,
+            stable_frames=a.zone_stable, posture_window=a.posture_window,
             viewer=viewer)
     except KeyboardInterrupt:
         pass
