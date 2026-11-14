@@ -7,8 +7,9 @@ namespace SmartHomeAI.Dashboard;
 public record Env(double TempC, double Humidity, double Lux);
 public record Door(bool Open);
 public record Device(bool On);
+public record PersonInfo(int TrackId, string Zone, string Posture, double Conf);
 public record HubSnapshot(string Mode, string Occupancy, Dictionary<string, Env> Env, Dictionary<string, Door> Door,
-    Dictionary<string, Device> Devices, Dictionary<string, bool> Online);
+    Dictionary<string, Device> Devices, Dictionary<string, bool> Online, List<PersonInfo>? Persons = null, int PersonCount = 0);
 // Hub /api/alerts is snake_case (raised_at, cancelled_at); reason: PersonReturned|DevicesOff|DataLost|null; feedback: None|Correct|Wrong.
 public record AlertItem(string Id,
     [property: JsonPropertyName("raised_at")] DateTimeOffset RaisedAt,

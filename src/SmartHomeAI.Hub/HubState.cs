@@ -79,8 +79,13 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
     public object Snapshot()
     {
         lock (_gate)
+        {
+            // Unknown = AI offline / camera down / state stale (same StateStale rule as Occupancy): no persons.
+            var persons = engine.State == OccupancyState.Unknown ? [] : _persons;
             return new
             {
+                persons = persons.Select(p => new { trackId = p.TrackId, zone = p.Zone, posture = p.Posture, conf = p.Conf }).ToList(),
+                personCount = persons.Count,
                 mode = _auto ? "auto" : "manual",
                 occupancy = engine.State.ToString(),
                 env = new Dictionary<string, EnvReading>(_env),
@@ -88,5 +93,6 @@ public class HubState(OccupancyEngine engine, AutomationEngine automation, Alert
                 devices = new Dictionary<string, DeviceReading>(_devices),
                 online = new Dictionary<string, bool>(_online),
             };
+        }
     }
 }

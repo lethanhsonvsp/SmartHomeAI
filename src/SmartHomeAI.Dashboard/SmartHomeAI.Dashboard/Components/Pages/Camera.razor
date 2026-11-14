@@ -29,6 +29,19 @@
             var ai = _s.Online.FirstOrDefault(k => k.Key.Equals("ai", StringComparison.OrdinalIgnoreCase));
             <p>Hiện diện: <strong>@_s.Occupancy</strong></p>
             <p>Nguồn AI: <span class="dot @(ai.Value ? "up" : "down")"></span>@(ai.Value ? "online" : "offline")</p>
+            <p>Số người: <strong>@_s.PersonCount</strong></p>
+            @if (_s.Persons is { Count: > 0 })
+            {
+                <table>
+                    <thead><tr><th>ID</th><th>Vùng</th><th>Tư thế</th></tr></thead>
+                    <tbody>
+                    @foreach (var p in _s.Persons)
+                    {
+                        <tr><td>@p.TrackId</td><td>@Zone(p.Zone)</td><td>@Posture(p.Posture)</td></tr>
+                    }
+                    </tbody>
+                </table>
+            }
         }
     </div>
 </div>
@@ -49,6 +62,16 @@
         _s = await Hub.State();
         _t = new Timer(async _ => { _s = await Hub.State(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
     }
+
+    static string Zone(string z) => z switch
+    {
+        "livingroom" => "Phòng khách", "sofa" => "Sofa", "door" => "Cửa", "other_exit" => "Lối sang khu khác", _ => z,
+    };
+
+    static string Posture(string p) => p switch
+    {
+        "standing" => "Đứng", "sitting" => "Ngồi", "lying" => "Nằm", "moving" => "Đi lại", _ => "Chưa rõ",
+    };
 
     public void Dispose() => _t?.Dispose();
 }

@@ -70,6 +70,31 @@ public class ParserTests
 public class RouterTests
 {
     [Fact]
+    public void Snapshot_persons_listed_then_empty_when_stale_or_ai_offline()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
+        var state = new HubState(new OccupancyEngine(time), new AutomationEngine(time), new AlertManager(time));
+        var r = new MessageRouter(state, new RecLog(), time, NullLogger<MessageRouter>.Instance, new FakeBus());
+        const string ts = "\"ts\":\"2026-11-14T12:00:00Z\"";
+        string Json() => System.Text.Json.JsonSerializer.Serialize(state.Snapshot());
+
+        r.Handle("home/ai/status", "{" + ts + ",\"online\":true}");
+        r.Handle("home/ai/livingroom/state", "{" + ts + ",\"seq\":1,\"camera_ok\":true,\"persons\":[{\"track_id\":7,\"zone\":\"sofa\",\"posture\":\"lying\",\"conf\":0.9}]}");
+        Assert.Contains("\"personCount\":1", Json());
+        Assert.Contains("\"trackId\":7", Json());
+        Assert.Contains("\"posture\":\"lying\"", Json());
+
+        r.Handle("home/ai/status", "{" + ts + ",\"online\":false}");
+        Assert.Contains("\"persons\":[]", Json());
+        Assert.Contains("\"personCount\":0", Json());
+
+        r.Handle("home/ai/status", "{" + ts + ",\"online\":true}");
+        Assert.Contains("\"personCount\":1", Json());
+        time.Advance(TimeSpan.FromSeconds(20)); // stale
+        Assert.Contains("\"persons\":[]", Json());
+    }
+
+    [Fact]
     public void Routes_to_engine_logs_and_survives_garbage()
     {
         var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
