@@ -7,11 +7,12 @@ from .tracker import Tracker, center
 
 
 def run(source, detector, zones, pub, aspect=16 / 9, detect_fps=4.0, state_hz=1.0,
-        stable_frames=3, now_iso=None, retry_s=2.0):
+        stable_frames=3, now_iso=None, retry_s=2.0, viewer=None):
     from .publisher import now_iso as default_now
     now_iso = now_iso or default_now
     tracker, seq = Tracker(), 0
     last_t = last_state = None
+    shown = []  # lớp phủ gần nhất cho viewer
     while True:
         item = source.read()
         if item is None:
@@ -23,10 +24,12 @@ def run(source, detector, zones, pub, aspect=16 / 9, detect_fps=4.0, state_hz=1.
             source.reopen()
             continue
         t, frame = item
+        if viewer:
+            viewer.update(frame, shown)
         if last_t is not None and t - last_t < 1 / detect_fps - 1e-6:
             continue
         dt, last_t = (t - last_t if last_t is not None else None), t
-        persons = []
+        persons, shown = [], []
         for tr in tracker.update(detector.detect(frame), t):
             c = center(tr.box)
             speed = 0.0
@@ -41,8 +44,12 @@ def run(source, detector, zones, pub, aspect=16 / 9, detect_fps=4.0, state_hz=1.
             if ch:
                 pub.send("transition", {"ts": now_iso(), "track_id": tr.id, "from_zone": ch[0], "to_zone": ch[1],
                                         "direction": transitions.direction(*ch), "conf": round(tr.conf, 2)})
+            shown.append({"box": tr.box, "kp": tr.det.keypoints, "id": tr.id, "zone": zone or tr.zone,
+                          "posture": posture, "conf": tr.conf})
             if tr.zone:
                 persons.append({"track_id": tr.id, "zone": tr.zone, "posture": posture, "conf": round(tr.conf, 2)})
+        if viewer:
+            viewer.update(frame, shown)
         if last_state is None or t - last_state >= 1 / state_hz - 1e-6:
             last_state, seq = t, seq + 1
             pub.send("state", {"ts": now_iso(), "seq": seq, "camera_ok": True, "persons": persons})

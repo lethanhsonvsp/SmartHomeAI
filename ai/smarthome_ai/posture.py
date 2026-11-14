@@ -11,21 +11,28 @@ LYING_AR = 1.1     # rộng/cao
 STAND_AR = 0.55
 
 
-def _kp_posture(kp):
+def _kp_posture(kp, aspect=16 / 9):
+    """Tọa độ chuẩn hóa nên x nhân aspect để so với y theo pixel."""
     if not kp or len(kp) < 17:
         return None
     ok = lambda i: kp[i][2] >= 0.3
-    if not all(ok(i) for i in (5, 6, 11, 12)):
+    mid = lambda a, b: ((kp[a][0] + kp[b][0]) / 2 * aspect, (kp[a][1] + kp[b][1]) / 2)
+    hips = [i for i in (11, 12) if ok(i)]
+    sh = [i for i in (5, 6) if ok(i)]
+    if not hips or not sh:
         return None
-    sx, sy = (kp[5][0] + kp[6][0]) / 2, (kp[5][1] + kp[6][1]) / 2
-    hx, hy = (kp[11][0] + kp[12][0]) / 2, (kp[11][1] + kp[12][1]) / 2
-    if abs(hy - sy) < abs(hx - sx):  # thân nằm ngang
+    hx, hy = mid(hips[0], hips[-1])
+    sx, sy = mid(sh[0], sh[-1])
+    dx, dy = abs(hx - sx), abs(hy - sy)
+    if dx > dy:  # thân gần nằm ngang
         return "lying"
-    if ok(13) and ok(14):
-        ky = (kp[13][1] + kp[14][1]) / 2
-        if abs(ky - hy) < 0.5 * abs(hy - sy):  # gối ngang hông
-            return "sitting"
-        return "standing"
+    if ok(0) and abs(kp[0][1] - hy) < dx * 0.5 and abs(kp[0][1] - sy) < dx * 0.5:  # đầu-vai-hông cùng độ cao
+        return "lying"
+    knees = [i for i in (13, 14) if ok(i)]
+    if knees:
+        ky = sum(kp[i][1] for i in knees) / len(knees)
+        # hông gần mức đầu gối (đùi nằm ngang) -> ngồi; chân duỗi thẳng xuống -> đứng
+        return "sitting" if abs(ky - hy) < 0.6 * dy else "standing"
     return None
 
 
@@ -33,7 +40,7 @@ def classify(box, speed: float, aspect: float = 16 / 9, keypoints=None) -> str:
     """speed: chiều cao hộp/giây (0 nếu chưa biết). aspect = rộng/cao khung hình."""
     if speed > MOVE_SPEED:
         return "moving"
-    kp = _kp_posture(keypoints)
+    kp = _kp_posture(keypoints, aspect)
     if kp:
         return kp
     w, h = (box[2] - box[0]) * aspect, box[3] - box[1]
