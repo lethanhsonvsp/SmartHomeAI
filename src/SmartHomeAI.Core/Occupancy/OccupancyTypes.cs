@@ -19,5 +19,9 @@ public record OccupancyOptions
 {
     public TimeSpan VerifyAway { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan StateStale { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>Occupied survives this long of continuous empty frames before becoming OtherArea (N03).</summary>
+    public TimeSpan EmptyGrace { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>Data loss up to this long keeps AwayConfirmed instead of re-verifying; matches AlertOptions.UnknownFreeze (N04).</summary>
+    public TimeSpan AwayResume { get; init; } = TimeSpan.FromSeconds(60);
     public string[] RoomZones { get; init; } = ["livingroom", "sofa"];
 }

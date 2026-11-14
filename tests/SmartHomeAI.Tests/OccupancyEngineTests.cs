@@ -134,4 +134,62 @@ public class OccupancyEngineTests
         Hold(20);
         Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
     }
+
+    [Fact]
+    public void N03_BriefEmptyFrames_WhileSitting_StayOccupied()
+    {
+        State(true, P(1, "sofa"));
+        for (var k = 0; k < 20; k++)
+        {
+            Wait(1); State(true);
+            Assert.Equal(OccupancyState.Occupied, _e.State);
+            Wait(1); State(true);
+            Assert.Equal(OccupancyState.Occupied, _e.State);
+            Hold(4, P(1, "sofa"));
+            Assert.Equal(OccupancyState.Occupied, _e.State);
+        }
+    }
+
+    [Fact]
+    public void N03_Empty15s_BecomesOtherAreaAfterGrace()
+    {
+        State(true, P(1, "sofa"));
+        Wait(1); State(true);
+        Hold(8);
+        Assert.Equal(OccupancyState.Occupied, _e.State);
+        Hold(7);
+        Assert.Equal(OccupancyState.OtherArea, _e.State);
+    }
+
+    [Fact]
+    public void N03_ClearExit_SkipsGrace()
+    {
+        State(true, P(1, "sofa"));
+        _e.OnTransition(new(1, Direction.Out, "door"));
+        Wait(1); State(true);
+        Assert.Equal(OccupancyState.ExitPending, _e.State);
+    }
+
+    [Fact]
+    public void N04_ShortDataLoss_AfterAway_ResumesAwayConfirmed()
+    {
+        State(true, P(1, "sofa"));
+        _e.OnTransition(new(1, Direction.Out, "door"));
+        State(true);
+        Hold(35);
+        Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
+        for (var k = 0; k < 5; k++)
+        {
+            _e.OnAiStatus(new(false));
+            Wait(10); Assert.Equal(OccupancyState.Unknown, _e.State);
+            Wait(10); Assert.Equal(OccupancyState.Unknown, _e.State);
+            _e.OnAiStatus(new(true)); State(true);
+            Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
+            Hold(3);
+        }
+        _e.OnAiStatus(new(false));
+        Wait(70); Assert.Equal(OccupancyState.Unknown, _e.State);
+        _e.OnAiStatus(new(true)); State(true);
+        Assert.Equal(OccupancyState.ExitPending, _e.State); // long loss: verify again
+    }
 }

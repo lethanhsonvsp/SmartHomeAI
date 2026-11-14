@@ -9,6 +9,8 @@ public class OccupancyEngine(TimeProvider time, OccupancyOptions? options = null
     bool _exitSeenGone; // the leaver has been seen out of the room zones since the evidence
     int? _exitTrack; // track that left; null = evidence came from the door sensor
     IReadOnlyList<Person> _persons = [];
+    bool _inRoomLatch; // last frame with anyone showed a person in a room zone (not yet seen elsewhere)
+    DateTimeOffset? _lastAway; // last read that returned AwayConfirmed; lets a short data loss resume it
 
     public OccupancyState State => Evaluate();
 
@@ -21,6 +23,8 @@ public class OccupancyEngine(TimeProvider time, OccupancyOptions? options = null
         _lastState = now;
         _cameraOk = s.CameraOk;
         _persons = s.Persons;
+        if (_persons.Any(p => _o.RoomZones.Contains(p.Zone))) _inRoomLatch = true;
+        else if (_persons.Count > 0) _inRoomLatch = false;
         if (!s.CameraOk) _emptySince = null;
         else if (_persons.Count == 0) _emptySince ??= now;
         else
@@ -59,9 +63,17 @@ public class OccupancyEngine(TimeProvider time, OccupancyOptions? options = null
             _emptySince = null; // SC10: never infer away from missing data; restart verification
             return OccupancyState.Unknown;
         }
-        if (_persons.Any(p => _o.RoomZones.Contains(p.Zone))) return OccupancyState.Occupied;
-        if (_persons.Count > 0 || _evidenceAt is null) return OccupancyState.OtherArea;
+        if (_persons.Any(p => _o.RoomZones.Contains(p.Zone))) { _lastAway = null; return OccupancyState.Occupied; }
+        // N03: a 1-2 frame dropout while seated is not leaving. EmptyGrace and VerifyAway overlap (both count
+        // from the first empty frame); the state only changes once the grace has passed. Exit evidence skips grace.
+        if (_persons.Count == 0 && _inRoomLatch && _evidenceAt is null && _emptySince is { } es && now - es < _o.EmptyGrace)
+            return OccupancyState.Occupied;
+        if (_persons.Count > 0 || _evidenceAt is null) { _lastAway = null; return OccupancyState.OtherArea; }
         var start = _emptySince > _evidenceAt ? _emptySince : _evidenceAt;
-        return now - start >= _o.VerifyAway ? OccupancyState.AwayConfirmed : OccupancyState.ExitPending;
+        if (now - start >= _o.VerifyAway) { _lastAway = now; return OccupancyState.AwayConfirmed; }
+        // N04: data came back after a short loss, still nobody and evidence kept: stay AwayConfirmed, not ExitPending
+        if (_lastAway is { } la && now - la <= _o.AwayResume) { _lastAway = now; return OccupancyState.AwayConfirmed; }
+        _lastAway = null;
+        return OccupancyState.ExitPending;
     }
 }

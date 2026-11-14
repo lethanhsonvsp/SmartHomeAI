@@ -130,4 +130,36 @@ public class AlertManagerTests
         Assert.Equal(Feedback.Correct, m.History[0].Feedback);
         Assert.False(m.OnUserFeedback("nope", true));
     }
+
+    [Fact] public void N04_AiFlapping_AfterAlert_OneAlertNeverCancelled()
+    {
+        var m = M();
+        var e = new OccupancyEngine(_t);
+        e.OnAiState(new(true, [new(1, "sofa")]));
+        e.OnTransition(new(1, Direction.Out, "door"));
+        var raised = 0; var cancelled = 0;
+        void Tick(int s)
+        {
+            for (var i = 0; i < s; i++)
+            {
+                _t.Advance(TimeSpan.FromSeconds(1));
+                if (e.State != OccupancyState.Unknown) e.OnAiState(new(true, []));
+                var acts = m.Evaluate(In(e.State));
+                raised += acts.OfType<RaiseAlert>().Count(a => a.Level == AlertLevel.First);
+                cancelled += acts.OfType<CancelAlert>().Count();
+            }
+        }
+        Tick(35 + 120);
+        Assert.Equal(1, raised);
+        for (var k = 0; k < 5; k++)
+        {
+            e.OnAiStatus(new(false)); Tick(20);
+            e.OnAiStatus(new(true)); e.OnAiState(new(true, [])); Tick(5);
+        }
+        Assert.Equal((1, 0), (raised, cancelled));
+        Assert.Equal("alert-1", Assert.Single(m.History).Id);
+        Assert.Null(m.History[0].Reason);
+        e.OnAiState(new(true, [new(2, "livingroom")]));
+        Assert.Equal([new CancelAlert("alert-1", CancelReason.PersonReturned)], m.Evaluate(In(e.State)));
+    }
 }
