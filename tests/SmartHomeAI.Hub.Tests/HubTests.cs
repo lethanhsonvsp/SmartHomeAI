@@ -225,6 +225,18 @@ public class AlertWiringTests
     }
 
     [Fact]
+    public void Data_lost_cancels_alert_with_data_lost_reason()
+    {
+        var r = Make();
+        Away(r);
+        Run(r, 200);
+        time.Advance(TimeSpan.FromSeconds(20)); // AI frames stop -> Unknown
+        r.Tick();
+        Assert.Contains(bus.Sent, s => s.Topic == "home/alert/alert-1/cancel" && s.Payload.Contains("data_lost"));
+        Assert.Contains("alert-alert-1:data_lost", log.Rows);
+    }
+
+    [Fact]
     public void Feedback_known_id_ok_unknown_false()
     {
         var r = Make();

@@ -3,7 +3,7 @@ using SmartHomeAI.Core.Occupancy;
 namespace SmartHomeAI.Core.Alerts;
 
 public enum AlertLevel { First, Reminder }
-public enum CancelReason { PersonReturned, DevicesOff }
+public enum CancelReason { PersonReturned, DevicesOff, DataLost }
 public enum Feedback { None, Correct, Wrong }
 
 /// <param name="AutoOffAllowed">Device ids the user allows to be switched off automatically.</param>

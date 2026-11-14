@@ -20,8 +20,8 @@ public class AlertManager(TimeProvider time, AlertOptions? options = null)
         var now = time.GetUtcNow();
         if (i.State != OccupancyState.AwayConfirmed)
         {
-            // Unknown also lands here: no data, so no alert. shortcut: reuses PersonReturned reason for Unknown.
-            Cancel(acts, now, CancelReason.PersonReturned);
+            // Unknown = no data, so no alert (DataLost); any other state means the person is back.
+            Cancel(acts, now, i.State == OccupancyState.Unknown ? CancelReason.DataLost : CancelReason.PersonReturned);
             _awaySince = _lastRaised = null; _done = _autoOffDone = false;
             return acts;
         }

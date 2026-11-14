@@ -72,7 +72,7 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
                     bus.Publish("home/sensor/esp1/buzzer/set", $"{{\"ts\":\"{ts}\",\"on\":true}}");
                     break;
                 case CancelAlert c:
-                    var reason = c.Reason == CancelReason.PersonReturned ? "person_returned" : "devices_off";
+                    var reason = c.Reason switch { CancelReason.PersonReturned => "person_returned", CancelReason.DataLost => "data_lost", _ => "devices_off" };
                     log.AlertCancelled(c.Id, now, reason);
                     bus.Publish($"home/alert/{c.Id}/cancel", $"{{\"ts\":\"{ts}\",\"id\":\"{c.Id}\",\"reason\":\"{reason}\"}}");
                     bus.Publish("home/sensor/esp1/buzzer/set", $"{{\"ts\":\"{ts}\",\"on\":false}}");

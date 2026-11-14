@@ -41,6 +41,14 @@ public class AlertManagerTests
         Assert.Empty(At(m, Min(10), In(OccupancyState.Occupied)));
     }
 
+    [Fact] public void Unknown_Cancels_DataLost()
+    {
+        var m = M();
+        m.Evaluate(In()); At(m, Min(2), In());
+        Assert.Equal([new CancelAlert("alert-1", CancelReason.DataLost)], At(m, Min(1), In(OccupancyState.Unknown)));
+        Assert.Equal(CancelReason.DataLost, m.History[0].Reason);
+    }
+
     [Fact] public void DevicesOff_Cancels_NoRepeat()
     {
         var m = M();
