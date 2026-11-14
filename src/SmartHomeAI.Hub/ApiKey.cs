@@ -14,6 +14,10 @@ public static class ApiKey
             SHA256.HashData(Encoding.UTF8.GetBytes(configured)), SHA256.HashData(Encoding.UTF8.GetBytes(supplied)));
     }
 
+    /// <summary>First config key that must be set outside Development, or null.</summary>
+    public static string? MissingForProduction(IConfiguration cfg) =>
+        new[] { "Api:Key", "Mqtt:User", "Mqtt:Password" }.FirstOrDefault(k => string.IsNullOrWhiteSpace(cfg[k]));
+
     public static EndpointFilterDelegate Filter(EndpointFilterFactoryContext _, EndpointFilterDelegate next) => async ctx =>
     {
         var key = ctx.HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Api:Key"];

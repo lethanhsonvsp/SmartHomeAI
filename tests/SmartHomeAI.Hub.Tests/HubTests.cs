@@ -334,3 +334,34 @@ public class ApiKeyTests
     [InlineData("k", "", false)]
     public void Allowed(string? configured, string? supplied, bool ok) => Assert.Equal(ok, ApiKey.Allowed(configured, supplied));
 }
+
+public class RouterConcurrencyTests
+{
+    [Fact]
+    public async Task Parallel_handle_tick_and_manual_do_not_throw_or_break_relay_spacing()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-11-14T12:00:00Z"));
+        var bus = new FakeBus();
+        var r = new MessageRouter(new HubState(new OccupancyEngine(time), new AutomationEngine(time, TestOpts.NoWait), new AlertManager(time)),
+            new RecLog(), time, NullLogger<MessageRouter>.Instance, bus);
+        var err = new System.Collections.Concurrent.ConcurrentQueue<Exception>();
+        void Run(Action a) { try { for (var i = 0; i < 2000; i++) a(); } catch (Exception e) { err.Enqueue(e); } }
+        var n = 0;
+        await Task.WhenAll(
+            Task.Run(() => Run(() => r.Tick())),
+            Task.Run(() => Run(() => r.TryPublishManual("light", Interlocked.Increment(ref n) % 2 == 0, out _))),
+            Task.Run(() => Run(() => r.TryPublishManual("fan", Interlocked.Increment(ref n) % 2 == 0, out _))),
+            Task.Run(() => Run(() => r.Handle("home/device/light/state", "{\"ts\":\"2026-11-14T12:00:00Z\",\"on\":true}"))),
+            Task.Run(() => { for (var i = 0; i < 2000; i++) time.Advance(TimeSpan.FromMilliseconds(500)); }));
+        Assert.Empty(err);
+    }
+}
+
+public class ProductionConfigTests
+{
+    static IConfiguration Cfg(params (string K, string V)[] kv) => new ConfigurationBuilder().AddInMemoryCollection(kv.Select(x => new KeyValuePair<string, string?>(x.K, x.V))).Build();
+
+    [Fact] public void Missing_key_is_reported() => Assert.Equal("Api:Key", ApiKey.MissingForProduction(Cfg(("Mqtt:User", "hub"), ("Mqtt:Password", "p"))));
+    [Fact] public void Missing_mqtt_user_is_reported() => Assert.Equal("Mqtt:User", ApiKey.MissingForProduction(Cfg(("Api:Key", "k"), ("Mqtt:Password", "p"))));
+    [Fact] public void Complete_config_passes() => Assert.Null(ApiKey.MissingForProduction(Cfg(("Api:Key", "k"), ("Mqtt:User", "hub"), ("Mqtt:Password", "p"))));
+}

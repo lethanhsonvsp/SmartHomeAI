@@ -12,7 +12,7 @@ builder.Services.AddSingleton(sp => new AutomationEngine(sp.GetRequiredService<T
     builder.Configuration.GetSection("Automation").Get<AutomationOptions>()));
 builder.Services.AddSingleton(sp => new ManualStore(builder.Configuration["Automation:ManualPath"] ?? "./data/manual.json", sp.GetRequiredService<ILogger<ManualStore>>()));
 builder.Services.AddSingleton(sp => new AlertManager(sp.GetRequiredService<TimeProvider>(),
-    builder.Configuration.GetSection("Alerts").Get<AlertOptions>()));
+    (builder.Configuration.GetSection("Alerts").Get<AlertOptions>() ?? new()) with { IdPrefix = $"{DateTimeOffset.UtcNow:yyMMddHHmmss}-" }));
 builder.Services.AddSingleton(new AlertWiring(builder.Configuration.GetSection("Alerts:AutoOffAllowed").Get<string[]>() ?? []));
 builder.Services.AddSingleton(sp => new HistoryStore(sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton(sp => new DecisionLog(sp.GetRequiredService<TimeProvider>()));
@@ -35,9 +35,13 @@ else
 builder.Services.AddHostedService<MqttService>();
 
 var app = builder.Build();
+// Production never starts open: API writes and the MQTT broker both need credentials.
+if (!app.Environment.IsDevelopment())
+    if (ApiKey.MissingForProduction(app.Configuration) is { } k)
+        throw new InvalidOperationException($"Config '{k}' is required outside Development (env {k.Replace(":", "__")}).");
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/health", (IServiceProvider sp) => Results.Ok(new { status = "ok", dbDropped = sp.GetService<PgEventLog>()?.Dropped ?? 0 }));
 app.MapGet("/api/state", (HubState s) => Results.Json(s.Snapshot()));
 app.MapGet("/api/history", (string? minutes, HubState s) =>
     HistoryStore.ParseMinutes(minutes) is { } m ? Results.Json(s.History.Query(m))

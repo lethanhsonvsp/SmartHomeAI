@@ -6,7 +6,8 @@ Wants=network-online.target
 [Service]
 WorkingDirectory=/opt/smarthome/hub
 ExecStart=/usr/bin/dotnet /opt/smarthome/hub/SmartHomeAI.Hub.dll
-Environment=ASPNETCORE_URLS=http://0.0.0.0:5080
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5080
+EnvironmentFile=/etc/smarthome/hub.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Restart=always
 RestartSec=5
