@@ -16,6 +16,18 @@ services:
       - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mqttdata:/mosquitto/data
     restart: unless-stopped
+  # Bản bảo mật: docker compose --profile secure up -d mosquitto-secure (sau khi chạy infra/mosquitto/make-passwd.sh)
+  mosquitto-secure:
+    image: eclipse-mosquitto:2
+    profiles: ["secure"]
+    ports: ["${MQTT_SECURE_PORT:-1884}:1883"]
+    volumes:
+      - ./infra/mosquitto/mosquitto.secure.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ./infra/mosquitto/acl:/mosquitto/config/acl:ro
+      - mqttdata-secure:/mosquitto/data
+    restart: unless-stopped
 volumes:
   pgdata:
   mqttdata:
+  mqttdata-secure:

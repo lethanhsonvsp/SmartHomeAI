@@ -16,7 +16,10 @@ public class MqttService(MessageRouter router, MqttBus bus, IConfiguration cfg, 
             return Task.CompletedTask;
         };
         bus.Client = client;
-        var opts = new MqttClientOptionsBuilder().WithTcpServer(host, port).WithClientId("smarthome-hub").Build();
+        var ob = new MqttClientOptionsBuilder().WithTcpServer(host, port).WithClientId("smarthome-hub");
+        var user = cfg["Mqtt:User"];
+        if (!string.IsNullOrEmpty(user)) ob.WithCredentials(user, cfg["Mqtt:Password"] ?? "");
+        var opts = ob.Build();
         var sub = new MqttClientSubscribeOptionsBuilder().WithTopicFilter("home/#", MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce).Build();
 
         while (!ct.IsCancellationRequested)

@@ -293,3 +293,15 @@ public class ConfigTests
         Assert.Equal(["livingroom", "sofa"], o.RoomZones);
     }
 }
+
+public class ApiKeyTests
+{
+    [Theory]
+    [InlineData(null, null, true)]
+    [InlineData("", "anything", true)]
+    [InlineData("k", "k", true)]
+    [InlineData("k", "wrong", false)]
+    [InlineData("k", null, false)]
+    [InlineData("k", "", false)]
+    public void Allowed(string? configured, string? supplied, bool ok) => Assert.Equal(ok, ApiKey.Allowed(configured, supplied));
+}

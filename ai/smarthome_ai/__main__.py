@@ -14,6 +14,8 @@ def main(argv=None):
     p.add_argument("--zones", required=True)
     p.add_argument("--host", default="localhost")
     p.add_argument("--port", type=int, default=1883)
+    p.add_argument("--user", help="MQTT user (hoặc SMARTHOME_MQTT_USER)")
+    p.add_argument("--password", help="MQTT password (hoặc SMARTHOME_MQTT_PASSWORD)")
     p.add_argument("--detector", choices=["hog", "fake"], default="hog")
     p.add_argument("--script", help="kịch bản JSON cho --detector fake")
     p.add_argument("--detect-fps", type=float, default=4.0)
@@ -28,7 +30,7 @@ def main(argv=None):
         if not a.source:
             p.error("--detector hog cần --source")
         det, src = HogDetector(), CvSource(a.source)
-    pub = Publisher(a.host, a.port)
+    pub = Publisher(a.host, a.port, user=a.user, password=a.password)
     try:
         run(src, det, Zones.load(a.zones), pub, detect_fps=a.detect_fps, state_hz=a.state_hz)
     except KeyboardInterrupt:

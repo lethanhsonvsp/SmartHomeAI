@@ -7,3 +7,5 @@ __pycache__/
 *.user
 .vs/
 .pytest_cache
+infra/mosquitto/passwd
+infra/mosquitto/acl

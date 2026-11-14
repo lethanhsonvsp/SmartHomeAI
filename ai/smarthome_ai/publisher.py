@@ -28,7 +28,7 @@ def check(kind: str, payload: dict) -> None:
 
 
 class Publisher:
-    def __init__(self, host="localhost", port=1883, client=None):
+    def __init__(self, host="localhost", port=1883, client=None, user=None, password=None):
         """client: tiêm client giả khi test."""
         if client is None:
             import paho.mqtt.client as mqtt
@@ -36,6 +36,9 @@ class Publisher:
             lwt = {"ts": now_iso(), "online": False}
             check("status", lwt)
             client.will_set(TOPICS["status"][0], json.dumps(lwt), qos=1, retain=True)
+            user = user or os.environ.get("SMARTHOME_MQTT_USER")
+            if user:  # không đặt thì anonymous như cũ
+                client.username_pw_set(user, password if password is not None else os.environ.get("SMARTHOME_MQTT_PASSWORD"))
             client.connect(host, port)
             client.loop_start()
         self.c = client

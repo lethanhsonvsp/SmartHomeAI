@@ -33,15 +33,16 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/api/state", (HubState s) => Results.Json(s.Snapshot()));
-app.MapPost("/api/mode", (ModeRequest r, HubState s) => { s.Auto = r.Auto; return Results.Json(new { auto = r.Auto }); });
-app.MapPost("/api/device/{id}", (string id, DeviceRequest r, MessageRouter router) =>
+var write = app.MapGroup("/api").AddEndpointFilterFactory(ApiKey.Filter);
+write.MapPost("/mode", (ModeRequest r, HubState s) => { s.Auto = r.Auto; return Results.Json(new { auto = r.Auto }); });
+write.MapPost("/device/{id}", (string id, DeviceRequest r, MessageRouter router) =>
     router.PublishManual(id, r.On) ? Results.Json(new { id, on = r.On }) : Results.BadRequest(new { error = "id must be light or fan" }));
 app.MapGet("/api/alerts", (HubState s) => Results.Json(s.AlertHistory().Select(r => new
 {
     id = r.Id, raised_at = r.RaisedAt, cancelled_at = r.CancelledAt,
     reason = r.Reason?.ToString(), feedback = r.Feedback.ToString(),
 })));
-app.MapPost("/api/alerts/{id}/feedback", (string id, FeedbackRequest r, MessageRouter router) =>
+write.MapPost("/alerts/{id}/feedback", (string id, FeedbackRequest r, MessageRouter router) =>
     router.Feedback(id, r.Correct) ? Results.Json(new { id, correct = r.Correct }) : Results.NotFound(new { error = "unknown alert id" }));
 
 app.Run();

@@ -1,0 +1,14 @@
+# Sao thành infra/mosquitto/acl rồi chỉnh nếu cần (compose profile "secure" gắn tệp acl).
+user hub
+topic readwrite home/#
+
+user ai
+topic write home/ai/#
+
+user sensor
+topic write home/sensor/#
+topic read home/sensor/+/buzzer/set
+
+user device
+topic write home/device/#
+topic read home/device/+/set

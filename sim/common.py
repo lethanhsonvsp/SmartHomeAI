@@ -1,5 +1,5 @@
 """Kết nối MQTT, ký thời gian và kiểm schema dùng chung."""
-import json, re
+import json, os, re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,13 +41,16 @@ def validate(topic: str, payload: dict) -> None:
     raise ValueError(f"topic không có schema: {topic}")
 
 
-def connect(client_id: str, lwt_topic: str | None = None, host="localhost", port=1883):
+def connect(client_id: str, lwt_topic: str | None = None, host="localhost", port=1883, user=None, password=None):
     """Tạo client đã kết nối. LWT offline retained nếu có lwt_topic."""
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
     if lwt_topic:
         lwt = {"ts": now_iso(), "online": False}
         validate(lwt_topic, lwt)
         c.will_set(lwt_topic, json.dumps(lwt), qos=1, retain=True)
+    user = user or os.environ.get("SMARTHOME_MQTT_USER")
+    if user:  # không đặt thì anonymous như cũ
+        c.username_pw_set(user, password if password is not None else os.environ.get("SMARTHOME_MQTT_PASSWORD"))
     c.connect(host, port)
     c.loop_start()
     return c
