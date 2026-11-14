@@ -1,7 +1,83 @@
-﻿@page "/"
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject HubClient Hub
 
-<PageTitle>Home</PageTitle>
+<PageTitle>SmartHomeAI</PageTitle>
+<h1>Phòng khách</h1>
 
-<h1>Hello, world!</h1>
+@if (_s is null)
+{
+    <p class="err">Không kết nối được Hub</p>
+    return;
+}
 
-Welcome to your new app.
+<div class="grid">
+    <div class="card occ @_s.Occupancy">
+        <h3>Hiện diện</h3>
+        <strong>@_s.Occupancy</strong>
+        <p>@Note(_s.Occupancy)</p>
+    </div>
+    <div class="card">
+        <h3>Môi trường</h3>
+        @foreach (var (node, e) in _s.Env)
+        {
+            <p>@node: @e.TempC.ToString("0.#") °C · @e.Humidity.ToString("0.#") % · @e.Lux.ToString("0") lux</p>
+        }
+        @if (_s.Env.Count == 0) { <p>Chưa có số liệu</p> }
+    </div>
+    <div class="card">
+        <h3>Cửa</h3>
+        @foreach (var (node, d) in _s.Door) { <p>@node: @(d.Open ? "Mở" : "Đóng")</p> }
+        @if (_s.Door.Count == 0) { <p>Chưa có số liệu</p> }
+    </div>
+    <div class="card">
+        <h3>Chế độ</h3>
+        <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button>
+        <button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
+    </div>
+    <div class="card">
+        <h3>Thiết bị</h3>
+        @foreach (var (id, name) in Devs)
+        {
+            var on = _s.Devices.TryGetValue(id, out var d) && d.On;
+            <p>@name: @(on ? "Đang bật" : "Đang tắt")
+                <button class="btn" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button></p>
+        }
+    </div>
+    <div class="card">
+        <h3>Nguồn dữ liệu</h3>
+        @foreach (var (src, up) in _s.Online) { <p><span class="dot @(up ? "up" : "down")"></span>@src: @(up ? "online" : "offline")</p> }
+        @if (_s.Online.Count == 0) { <p>Chưa có nguồn nào báo</p> }
+    </div>
+</div>
+@if (_msg is not null) { <p class="err">@_msg</p> }
+
+@code {
+    static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt")];
+    HubSnapshot? _s;
+    string? _msg;
+    Timer? _t;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        _t = new Timer(async _ => { await Refresh(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
+    }
+
+    async Task Refresh() => _s = await Hub.State();
+    async Task Mode(bool auto) => await Act(Hub.SetMode(auto));
+    async Task Dev(string id, bool on) => await Act(Hub.SetDevice(id, on));
+    async Task Act(Task<bool> call) { _msg = await call ? null : "Gửi lệnh thất bại"; await Refresh(); }
+
+    static string Note(string o) => o switch
+    {
+        "OCCUPIED" => "Có người trong phòng",
+        "OTHER_AREA" => "Người ở khu vực khác của nhà",
+        "EXIT_PENDING" => "Đang xác minh người vừa ra ngoài",
+        "AWAY_CONFIRMED" => "Đã xác nhận nhà vắng",
+        _ => "Chưa đủ dữ liệu để kết luận",
+    };
+
+    public void Dispose() => _t?.Dispose();
+}

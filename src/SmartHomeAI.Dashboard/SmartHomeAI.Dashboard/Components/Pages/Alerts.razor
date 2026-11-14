@@ -1,0 +1,47 @@
+@page "/alerts"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject HubClient Hub
+
+<PageTitle>Cảnh báo</PageTitle>
+<h1>Cảnh báo</h1>
+
+@if (_a is null)
+{
+    <p class="err">Không kết nối được Hub</p>
+}
+else if (_a.Count == 0)
+{
+    <p>Chưa có cảnh báo</p>
+}
+else
+{
+    @foreach (var x in _a)
+    {
+        <div class="card">
+            <small>@x.Ts?.ToLocalTime().ToString("dd/MM HH:mm:ss") @x.Kind</small>
+            <p>@x.Message</p>
+            @if (x.Correct is null)
+            {
+                <button class="btn" @onclick="() => Send(x.Id, true)">Đúng</button>
+                <button class="btn" @onclick="() => Send(x.Id, false)">Sai</button>
+            }
+            else { <em>Đã phản hồi: @(x.Correct == true ? "Đúng" : "Sai")</em> }
+        </div>
+    }
+}
+
+@code {
+    List<AlertItem>? _a;
+    Timer? _t;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _a = await Hub.Alerts();
+        _t = new Timer(async _ => { _a = await Hub.Alerts(); await InvokeAsync(StateHasChanged); }, null, 2000, 2000);
+    }
+
+    async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
+
+    public void Dispose() => _t?.Dispose();
+}

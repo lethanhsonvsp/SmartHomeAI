@@ -1,4 +1,4 @@
-using SmartHomeAI.Dashboard.Client.Pages;
+using SmartHomeAI.Dashboard;
 using SmartHomeAI.Dashboard.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +8,11 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
+builder.Services.AddHttpClient<HubClient>(c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["Hub:BaseUrl"] ?? "http://localhost:5002");
+    c.Timeout = TimeSpan.FromSeconds(3);
+});
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -22,7 +27,7 @@ else
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+// LAN HTTP-only; no HTTPS redirect
 
 app.UseAntiforgery();
 
