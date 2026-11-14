@@ -5,9 +5,9 @@ from .common import connect, publish
 from .scenarios import build
 
 
-def play(code, speed=1.0, host="localhost", port=1883, dry=False, ts="real"):
+def play(code, speed=1.0, host="localhost", port=1883, dry=False, ts="real", noise=None, seed=0):
     """ts="real": ts theo đồng hồ thật (cách nhau t/speed); "sim": ts cách nhau t (thời gian mô phỏng)."""
-    events = build(code, scale=1 / speed if ts == "real" else 1.0)
+    events = build(code, scale=1 / speed if ts == "real" else 1.0, noise=noise, seed=seed)
     c = None if dry else connect(f"sim-run-{code}", None, host, port)
     if c:
         for _ in range(100):  # paho connect() trả về trước CONNACK: publish sớm sẽ lỗi

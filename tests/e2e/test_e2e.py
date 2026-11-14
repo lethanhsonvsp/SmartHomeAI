@@ -7,17 +7,20 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from sim.player import play  # noqa: E402
+from sim.player import play as _play  # noqa: E402
+
+MQTT_PORT = int(os.environ.get("E2E_MQTT_PORT", 1883))
+play = lambda code, speed: _play(code, speed=speed, port=MQTT_PORT)
 
 # Hub dùng đồng hồ thật: xác minh vắng 5 s, cảnh báo 5 s, state cũ sau 3 s (Occupancy__*, Alerts__*); speed 8 nén kịch bản.
-PORT, SPEED = 5099, 8
+PORT, SPEED = int(os.environ.get("E2E_HUB_PORT", 5097)), 8  # 5099 cũ hay bị Hub mồ côi giữ
 BASE = f"http://127.0.0.1:{PORT}"
 RETAINED = ["home/ai/status", "home/sensor/esp1/door", "home/sensor/esp1/env", "home/device/light/state", "home/device/fan/state"]
 
 
 def _broker_up():
     try:
-        socket.create_connection(("localhost", 1883), 1).close()
+        socket.create_connection(("localhost", MQTT_PORT), 1).close()
         return True
     except OSError:
         return False
@@ -37,7 +40,7 @@ class Bus:
         self.msgs = []
         self.c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="e2e-spy")
         self.c.on_message = lambda c, u, m: self.msgs.append((time.monotonic(), m.topic, m.payload.decode(), m.retain))
-        self.c.connect("localhost", 1883)
+        self.c.connect("localhost", MQTT_PORT)
         self.c.subscribe("home/#", 1)
         self.c.loop_start()
 
@@ -69,12 +72,14 @@ def dotnet_ok():
 
 
 @pytest.fixture
-def hub(dotnet_ok):
+def hub(dotnet_ok, tmp_path):
     bus = Bus()
     bus.clear_retained()
     env = {**os.environ, "ConnectionStrings__Postgres": "", "Alerts__FirstAfter": "00:00:05",
            "Occupancy__VerifyAway": "00:00:05", "Occupancy__StateStale": "00:00:03",
-           "ASPNETCORE_ENVIRONMENT": "Production"}
+           "ASPNETCORE_ENVIRONMENT": "Production", "Mqtt__Port": str(MQTT_PORT),
+           # thời gian thật nén cùng speed 8; lệnh tay lưu vào tệp tạm riêng từng test
+           "Automation__StartupGrace": "00:00:00", "Automation__SofaLyingMin": "00:00:01", "Automation__ManualPath": str(tmp_path / "manual.json")}
     p = subprocess.Popen(["dotnet", "run", "--project", "src/SmartHomeAI.Hub", "--no-build", "--urls", BASE],
                          cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     try:
