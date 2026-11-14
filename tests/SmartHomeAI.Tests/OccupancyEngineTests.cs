@@ -29,7 +29,7 @@ public class OccupancyEngineTests
     public void SC06_ExitThenReturn_Cancels()
     {
         State(true, P(1, "livingroom"));
-        _e.OnTransition(new(1, Direction.Out));
+        _e.OnTransition(new(1, Direction.Out, "door"));
         State(true);
         Hold(10);
         Assert.Equal(OccupancyState.ExitPending, _e.State);
@@ -44,7 +44,7 @@ public class OccupancyEngineTests
     public void SC07_Exit_AwayConfirmedAfter30s()
     {
         State(true, P(1, "livingroom"));
-        _e.OnTransition(new(1, Direction.Out));
+        _e.OnTransition(new(1, Direction.Out, "door"));
         _e.OnDoor(new(true));
         State(true);
         Hold(29);
@@ -57,7 +57,7 @@ public class OccupancyEngineTests
     public void SC08_TwoPeople_OneLeaves_NeverPendingOrAway()
     {
         State(true, P(1, "livingroom"), P(2, "sofa"));
-        _e.OnTransition(new(1, Direction.Out));
+        _e.OnTransition(new(1, Direction.Out, "door"));
         _e.OnDoor(new(true));
         Hold(60, P(2, "sofa"));
         Assert.Equal(OccupancyState.Occupied, _e.State);
@@ -70,7 +70,7 @@ public class OccupancyEngineTests
     public void SC10_CameraLost_UnknownNeverAway()
     {
         State(true, P(1, "livingroom"));
-        _e.OnTransition(new(1, Direction.Out));
+        _e.OnTransition(new(1, Direction.Out, "door"));
         State(true);
         Hold(20);
         State(false);
@@ -87,13 +87,51 @@ public class OccupancyEngineTests
     public void SC11_PersonReturnsFromAway_Occupied()
     {
         State(true, P(1, "livingroom"));
-        _e.OnTransition(new(1, Direction.Out));
+        _e.OnTransition(new(1, Direction.Out, "door"));
         State(true);
         Hold(30);
         Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
-        _e.OnTransition(new(1, Direction.In));
+        _e.OnTransition(new(1, Direction.In, "door"));
         State(true, P(1, "door"));
         State(true, P(1, "livingroom"));
         Assert.Equal(OccupancyState.Occupied, _e.State);
+    }
+
+    [Fact]
+    public void R05_OutToOtherExit_ThenGone_NotAway()
+    {
+        State(true, P(1, "sofa"));
+        _e.OnTransition(new(1, Direction.Out, "other_exit"));
+        State(true);
+        Hold(300);
+        Assert.Equal(OccupancyState.OtherArea, _e.State);
+    }
+
+    [Fact]
+    public void R05_OtherExitThenDoorOpens_AwayConfirmed()
+    {
+        State(true, P(1, "sofa"));
+        _e.OnTransition(new(1, Direction.Out, "other_exit"));
+        State(true);
+        Hold(60);
+        Assert.Equal(OccupancyState.OtherArea, _e.State);
+        _e.OnDoor(new(true));
+        Hold(10);
+        Assert.Equal(OccupancyState.ExitPending, _e.State);
+        Hold(20);
+        Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
+    }
+
+    [Fact]
+    public void OutToDoor_WithDoorOpen_PendingThenAway()
+    {
+        State(true, P(1, "livingroom"));
+        _e.OnTransition(new(1, Direction.Out, "door"));
+        _e.OnDoor(new(true));
+        State(true);
+        Hold(10);
+        Assert.Equal(OccupancyState.ExitPending, _e.State);
+        Hold(20);
+        Assert.Equal(OccupancyState.AwayConfirmed, _e.State);
     }
 }

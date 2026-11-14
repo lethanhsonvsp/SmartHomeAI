@@ -77,6 +77,7 @@ public static class MqttParser
     static AiTransitionMsg ParseTransition(JsonElement e, string raw)
     {
         var dir = Enum(e, "direction", ["in", "out", "unknown"]) switch { "in" => Direction.In, "out" => Direction.Out, _ => Direction.Unknown };
-        return new AiTransitionMsg(Ts(e), new AiTransition(Int(e, "track_id"), dir), Enum(e, "from_zone", Zones), Enum(e, "to_zone", Zones), Num(e, "conf", 0, 1), raw);
+        var to = Enum(e, "to_zone", Zones);
+        return new AiTransitionMsg(Ts(e), new AiTransition(Int(e, "track_id"), dir, to), Enum(e, "from_zone", Zones), to, Num(e, "conf", 0, 1), raw);
     }
 }

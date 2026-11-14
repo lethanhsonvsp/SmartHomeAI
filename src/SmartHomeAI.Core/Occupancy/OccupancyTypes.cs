@@ -9,7 +9,7 @@ public record AiState(bool CameraOk, IReadOnlyList<Person> Persons);
 
 public enum Direction { In, Out, Unknown }
 
-public record AiTransition(int TrackId, Direction Direction);
+public record AiTransition(int TrackId, Direction Direction, string ToZone);
 
 public record DoorEvent(bool Open);
 

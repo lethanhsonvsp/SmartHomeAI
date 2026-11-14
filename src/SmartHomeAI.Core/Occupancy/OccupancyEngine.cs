@@ -39,7 +39,8 @@ public class OccupancyEngine(TimeProvider time, OccupancyOptions? options = null
 
     public void OnTransition(AiTransition t)
     {
-        if (t.Direction == Direction.Out) { _evidenceAt = time.GetUtcNow(); _exitTrack = t.TrackId; _exitSeenGone = false; }
+        // only leaving via the main door is exit evidence; other_exit is still inside the house (SC05)
+        if (t.Direction == Direction.Out && t.ToZone == "door") { _evidenceAt = time.GetUtcNow(); _exitTrack = t.TrackId; _exitSeenGone = false; }
         else if (t.Direction == Direction.In) _evidenceAt = null;
     }
 
