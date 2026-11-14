@@ -25,4 +25,6 @@ public record AlertOptions
     /// <summary>Unknown shorter than this after AwayConfirmed freezes the counters instead of cancelling.</summary>
     public TimeSpan UnknownFreeze { get; init; } = TimeSpan.FromSeconds(60);
     public bool AutoOffEnabled { get; init; }
+    /// <summary>Prepended to alert ids (alert-{prefix}{n}); the Hub sets a per-start value so ids stay unique across restarts.</summary>
+    public string IdPrefix { get; init; } = "";
 }

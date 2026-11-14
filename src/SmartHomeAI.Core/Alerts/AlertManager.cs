@@ -41,7 +41,7 @@ public class AlertManager(TimeProvider time, AlertOptions? options = null)
         var elapsed = now - _awaySince.Value;
         if (_activeId is null && elapsed >= _o.FirstAfter)
         {
-            _activeId = $"alert-{++_seq}";
+            _activeId = $"alert-{_o.IdPrefix}{++_seq}";
             _lastRaised = now;
             _history.Add(new(_activeId, now, null, null, Feedback.None));
             acts.Add(new RaiseAlert(_activeId, on, AlertLevel.First));

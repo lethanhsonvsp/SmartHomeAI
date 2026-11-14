@@ -34,6 +34,9 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
 {
     readonly Channel<(string Sql, NpgsqlParameter[] P)> _q = Channel.CreateBounded<(string, NpgsqlParameter[])>(10_000);
     bool _ready;
+    long _dropped;
+    /// <summary>Records lost because the queue was full or PostgreSQL was down (shown on /health).</summary>
+    public long Dropped => Interlocked.Read(ref _dropped);
 
     static NpgsqlParameter P(string n, object v, NpgsqlDbType t) => new(n, t) { Value = v };
     static NpgsqlParameter Ts(DateTimeOffset v) => P("ts", v.UtcDateTime, NpgsqlDbType.TimestampTz);
@@ -43,7 +46,13 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
 
     void Enqueue(string sql, params NpgsqlParameter[] p)
     {
-        if (!_q.Writer.TryWrite((sql, p))) logger.LogWarning("DB log queue full, dropping a record");
+        if (!_q.Writer.TryWrite((sql, p))) Drop("DB log queue full, dropping a record");
+    }
+
+    void Drop(string why)
+    {
+        // warn on the 1st drop and every 100th, so a long outage does not flood the log
+        if ((Interlocked.Increment(ref _dropped) - 1) % 100 == 0) logger.LogWarning("{Why} (total dropped {N})", why, Dropped);
     }
 
     public void Env(EnvMsg m) => Enqueue("INSERT INTO sensor_reading(ts,node,temp_c,humidity,lux) VALUES(@ts,@n,@t,@h,@l)",
@@ -55,7 +64,7 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
         Ts(ts), S("k", kind), P("p", json, NpgsqlDbType.Jsonb));
     public void Occupancy(DateTimeOffset ts, string state) => Enqueue("INSERT INTO occupancy_log(ts,state) VALUES(@ts,@s)", Ts(ts), S("s", state));
 
-    // shortcut: ids restart at alert-1 after a Hub restart; updates hit the newest row of that id, upgrade to a uuid when history must survive restarts exactly.
+    // Alert ids carry a per-start prefix (AlertOptions.IdPrefix), so they stay unique across Hub restarts.
     const string Latest = " WHERE id=@i AND raised_at=(SELECT max(raised_at) FROM alert_log WHERE id=@i)";
     public void AlertRaised(string id, DateTimeOffset ts) => Enqueue("INSERT INTO alert_log(id,raised_at) VALUES(@i,@ts)", S("i", id), Ts(ts));
     public void AlertCancelled(string id, DateTimeOffset ts, string reason) =>
@@ -77,7 +86,7 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning("PostgreSQL unavailable, record dropped: {Error}", ex.Message);
+            logger.LogWarning("PostgreSQL unavailable: {Error}", ex.Message);
             return false;
         }
     }
@@ -87,7 +96,7 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
         _ready = await InitAsync(ct);
         await foreach (var (sql, p) in _q.Reader.ReadAllAsync(ct))
         {
-            if (!_ready && !(_ready = await InitAsync(ct))) continue; // retried per record; one cheap failed connect each
+            if (!_ready && !(_ready = await InitAsync(ct))) { Drop("PostgreSQL unavailable, record dropped"); continue; } // retried per record; one cheap failed connect each
             try
             {
                 await using var c = db.CreateCommand(sql);
@@ -97,7 +106,7 @@ public class PgEventLog(NpgsqlDataSource db, ILogger<PgEventLog> logger) : Backg
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _ready = false;
-                logger.LogWarning("DB write failed: {Error}", ex.Message);
+                Drop("DB write failed: " + ex.Message);
             }
         }
     }
