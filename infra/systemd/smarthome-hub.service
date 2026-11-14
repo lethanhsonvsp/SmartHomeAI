@@ -1,0 +1,16 @@
+[Unit]
+Description=Smart Home AI Hub (ASP.NET Core)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/smarthome/hub
+ExecStart=/usr/bin/dotnet /opt/smarthome/hub/SmartHomeAI.Hub.dll
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5080
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Restart=always
+RestartSec=5
+User=smarthome
+
+[Install]
+WantedBy=multi-user.target

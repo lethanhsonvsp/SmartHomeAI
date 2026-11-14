@@ -1,0 +1,13 @@
+[Unit]
+Description=Smart Home AI (Python camera + nhận diện)
+After=network-online.target smarthome-hub.service
+
+[Service]
+WorkingDirectory=/opt/smarthome/ai
+ExecStart=/opt/smarthome/ai/.venv/bin/python -m smarthome_ai
+Restart=always
+RestartSec=5
+User=smarthome
+
+[Install]
+WantedBy=multi-user.target

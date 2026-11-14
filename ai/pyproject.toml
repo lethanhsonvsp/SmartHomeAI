@@ -1,0 +1,8 @@
+[project]
+name = "smarthome-ai"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []  # opencv-python, ultralytics, paho-mqtt: thêm khi làm NV01
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
