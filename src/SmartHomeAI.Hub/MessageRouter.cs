@@ -8,6 +8,7 @@ public record AlertWiring(IReadOnlyCollection<string> AutoOffAllowed);
 /// <summary>Broker-free core of the Hub: topic+payload in, state and log out.</summary>
 public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILogger<MessageRouter> logger, IMqttPublisher bus, AlertWiring? alertCfg = null)
 {
+    readonly object _flow = new(); // Handle (MQTT), Tick (timer loop) and the HTTP entry points all run here, one at a time
     readonly HashSet<string> _sent = []; // payloads we published and already logged; their bus echo must not be logged twice
 
     readonly CommandGate _gate = new(time, state.AutomationOptions);
@@ -15,7 +16,9 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
 
     readonly IReadOnlyCollection<string> _autoOffAllowed = alertCfg?.AutoOffAllowed ?? [];
 
-    public void Handle(string topic, string payload)
+    public void Handle(string topic, string payload) { lock (_flow) HandleCore(topic, payload); }
+
+    void HandleCore(string topic, string payload)
     {
         Msg? m;
         try { m = MqttParser.Parse(topic, payload); }
@@ -27,10 +30,12 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
         RunAlerts();
     }
 
-    public void Tick() { Publish(state.Tick()); RunAuto(); RunAlerts(); }
+    public void Tick() { lock (_flow) { Publish(state.Tick()); RunAuto(); RunAlerts(); } }
 
     /// <summary>User verdict on an alert. False if the id is unknown.</summary>
-    public bool Feedback(string id, bool correct)
+    public bool Feedback(string id, bool correct) { lock (_flow) return FeedbackCore(id, correct); }
+
+    bool FeedbackCore(string id, bool correct)
     {
         if (!state.AlertFeedback(id, correct)) return false;
         state.Decisions.Add("alert", $"Bạn phản hồi cảnh báo {id}: {(correct ? "đúng" : "sai")}");
@@ -46,7 +51,7 @@ public class MessageRouter(HubState state, IEventLog log, TimeProvider time, ILo
     {
         coalesced = false;
         if (id is not ("light" or "fan")) return false;
-        coalesced = Dispatch(id, on, "manual") != GateOutcome.Send;
+        lock (_flow) coalesced = Dispatch(id, on, "manual") != GateOutcome.Send;
         return true;
     }
 

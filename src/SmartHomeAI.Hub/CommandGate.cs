@@ -4,7 +4,7 @@ namespace SmartHomeAI.Hub;
 
 public enum GateOutcome { Send, Coalesced, Duplicate }
 
-/// <summary>Short-term debounce of every command the Hub publishes to one device (relay protection). Not thread-safe: the router calls it under its own flow.</summary>
+/// <summary>Short-term debounce of every command the Hub publishes to one device (relay protection). Not thread-safe: MessageRouter calls it only inside its _flow lock.</summary>
 public class CommandGate(TimeProvider time, AutomationOptions o)
 {
     class Dev
