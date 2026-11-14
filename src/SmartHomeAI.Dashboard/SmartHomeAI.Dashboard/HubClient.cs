@@ -20,6 +20,8 @@ public record EnvPt(DateTimeOffset Ts, double TempC, double Humidity, double Lux
 public record OccPt(DateTimeOffset Ts, string State);
 public record PersonPt(DateTimeOffset Ts, int Count);
 public record EspState(double TempC, double Humidity, double Lux, bool DoorOpen, bool Buzzer);
+// Hub /api/events (camelCase): kind auto|wait|manual|device|alert|occupancy; Message đã định dạng tiếng Việt.
+public record EventItem(DateTimeOffset Ts, string Kind, string? Device, bool? On, string Message);
 public record History(List<EnvPt> Env, List<OccPt> Occupancy, List<PersonPt> Persons);
 
 /// <summary>Server-side client for the Hub REST API; null/false results mean Hub unreachable or failed.</summary>
@@ -40,6 +42,17 @@ public class HubClient(HttpClient http)
     public Task<HubSnapshot?> State() => Get<HubSnapshot>("/api/state");
     public Task<List<AlertItem>?> Alerts() => Get<List<AlertItem>>("/api/alerts");
     public Task<History?> History(int minutes) => Get<History>($"/api/history?minutes={minutes}");
+    /// <summary>Items null = Hub không trả lời; Unsupported = Hub cũ chưa có /api/events (404).</summary>
+    public async Task<(List<EventItem>? Items, bool Unsupported)> Events(int limit = 50)
+    {
+        try
+        {
+            var r = await http.GetAsync($"/api/events?limit={limit}");
+            if (r.StatusCode == System.Net.HttpStatusCode.NotFound) return (null, true);
+            return (r.IsSuccessStatusCode ? await r.Content.ReadFromJsonAsync<List<EventItem>>(J) : null, false);
+        }
+        catch (Exception) { return (null, false); }
+    }
     public Task<bool> SetMode(bool auto) => Post("/api/mode", new { auto });
     public Task<bool> SetDevice(string id, bool on) => Post($"/api/device/{id}", new { on });
     public Task<bool> Feedback(string id, bool correct) => Post($"/api/alerts/{Uri.EscapeDataString(id)}/feedback", new { correct });

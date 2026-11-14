@@ -17,10 +17,10 @@ small, .muted { color: var(--mut); }
 .app { height: 100dvh; box-sizing: border-box; padding: 8px; gap: 8px; display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto minmax(0, .8fr);
-    grid-template-areas: "status status" "cam people" "cam devs" "ch al"; }
+    grid-template-areas: "status status" "cam people" "cam devs" "lg al"; }
 .status { grid-area: status; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .cam { grid-area: cam; } .people { grid-area: people; } .devs { grid-area: devs; }
-.charts-pane { grid-area: ch; } .alerts { grid-area: al; }
+.log-pane { grid-area: lg; } .alerts { grid-area: al; }
 
 .pane { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
     display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
@@ -64,19 +64,14 @@ table { width: 100%; border-collapse: collapse; } th, td { text-align: left; pad
 .switch input:checked + .slider::before { transform: translateX(24px); }
 .switch input:disabled + .slider { opacity: .5; }
 
-/* Biểu đồ */
-.charts { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; position: relative; padding-bottom: 18px; }
-.ch { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.chl { display: flex; gap: 10px; font-size: .8rem; flex-wrap: wrap; } .rng { margin-left: auto; color: var(--mut); }
-.k.t { color: var(--t); } .k.h { color: var(--h); } .k.l { color: var(--l); } .k.p { color: var(--p); }
-.ch svg { flex: 1; min-height: 0; width: 100%; background: color-mix(in srgb, var(--fg) 4%, transparent); border-radius: 4px; }
-.ln { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-.ln.t { stroke: var(--t); } .ln.h { stroke: var(--h); } .ln.l { stroke: var(--l); } .ln.p { stroke: var(--p); stroke-width: 2.5; }
-.occ-Occupied { fill: #2e9e4f55; } .occ-OtherArea { fill: #1b6ec255; } .occ-ExitPending { fill: #d4a00055; }
-.occ-AwayConfirmed { fill: #b0002055; } .occ-Unknown { fill: #8884; }
-.axis { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; font-size: .75rem; color: var(--mut); }
-.axis span { position: absolute; transform: translateX(-50%); } .axis span:first-child { transform: none; } .axis span:last-child { transform: translateX(-100%); }
-
+/* Nhật ký quyết định: cuộn bên trong ô; overflow-anchor giữ vị trí khi dòng mới chèn lên trên. */
+.log { overflow-anchor: auto; }
+.ev { display: flex; gap: 8px; align-items: baseline; padding: 3px 6px; border-left: 4px solid var(--mut); border-top: 1px solid var(--line); }
+.ev small { flex: none; font-variant-numeric: tabular-nums; }
+.ev .ic { flex: none; width: 1.3em; text-align: center; }
+.ev.k-auto { border-left-color: var(--ok); } .ev.k-wait { border-left-color: #c9b458; color: var(--mut); }
+.ev.k-manual { border-left-color: var(--acc); } .ev.k-alert { border-left-color: var(--bad); color: var(--bad); }
+.why { display: block; margin: -2px 0 4px; }
 /* Ngăn kéo mô phỏng (máy tính) */
 .simpane { position: fixed; top: 8px; right: 8px; bottom: 8px; width: min(380px, calc(100vw - 16px)); z-index: 20; display: none; box-shadow: 0 4px 24px #0006; }
 .simpane.open { display: flex; }
@@ -88,7 +83,7 @@ table { width: 100%; border-collapse: collapse; } th, td { text-align: left; pad
     .app > .pane, .app > .status { display: none; }
     .app[data-tab=ov] > .status { display: flex; }
     .app[data-tab=ov] > .people, .app[data-tab=ov] > .devs { display: flex; }
-    .app[data-tab=cam] > .cam, .app[data-tab=ch] > .charts-pane, .app[data-tab=al] > .alerts, .app[data-tab=sim] > .simpane
+    .app[data-tab=cam] > .cam, .app[data-tab=lg] > .log-pane, .app[data-tab=al] > .alerts, .app[data-tab=sim] > .simpane
         { display: flex; grid-area: 1 / 1 / 4 / 2; position: static; width: auto; box-shadow: none; }
     .simbtn, .simclose { display: none; }
     .tabs { display: flex; grid-area: tabs; gap: 4px; }
@@ -117,3 +112,4 @@ table { width: 100%; border-collapse: collapse; } th, td { text-align: left; pad
     .zed { flex-direction: column; }
     .zside { width: auto; max-height: 45%; grid-template-columns: repeat(3, 1fr); }
 }
+.warn { padding: 4px 0; } .warn .btn { margin-left: 6px; }

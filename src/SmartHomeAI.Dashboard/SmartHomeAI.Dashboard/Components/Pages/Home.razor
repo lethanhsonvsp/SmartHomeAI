@@ -99,6 +99,12 @@
 
     <section class="pane devs p-ov">
         <h3>Đèn / quạt trần</h3>
+        @if (_s is not null && !(_s.Online.TryGetValue("device", out var plugOn) && plugOn))
+        {
+            <div class="err warn">Ổ cắm chưa kết nối: lệnh sẽ không có tác dụng. Bật Mô phỏng ổ cắm hoặc nối ổ cắm thật.
+                @if (!Sim.Plug.On) { <button class="btn" @onclick="() => Sim.Plug.Set(true)">Bật mô phỏng ổ cắm</button> }
+            </div>
+        }
         @foreach (var (id, name) in Devs)
         {
             var on = _s is not null && _s.Devices.TryGetValue(id, out var dv) && dv.On;
@@ -106,21 +112,35 @@
                 <span>@name: <b>@(on ? "bật" : "tắt")</b></span>
                 <button class="btn @(on ? "on" : "")" disabled="@(_s is null)" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button>
             </div>
+            @if (_pend is { } pd && pd.Id == id && DateTime.UtcNow - pd.At > TimeSpan.FromSeconds(3) && on != pd.On) { <small class="err">Chưa thấy thiết bị phản hồi</small> }
+            @if (Reason(id) is { } rs) { <small class="why">@rs</small> }
         }
     </section>
 
-    <section class="pane charts-pane p-ch">
+    <section class="pane log-pane p-lg">
         <div class="head">
-            <h3>Biểu đồ</h3>
+            <h3>Nhật ký</h3>
             <span class="seg">
-                @foreach (var m in new[] { 15, 60, 360 })
+                @foreach (var (k, n) in Filters)
                 {
-                    var mm = m;
-                    <button class="btn @(_min == mm ? "on" : "")" @onclick="() => SetMin(mm)">@(mm == 15 ? "15 phút" : mm == 60 ? "1 giờ" : "6 giờ")</button>
+                    var kk = k;
+                    <button class="btn @(_flt == kk ? "on" : "")" @onclick="() => _flt = kk">@n</button>
                 }
             </span>
         </div>
-        <Charts H="_h" Minutes="_min" />
+        <div class="scroll log">
+            @if (_unsupported) { <p class="muted">Hub chưa hỗ trợ nhật ký</p> }
+            else if (_ev is null) { <p class="err">Không kết nối được Hub</p> }
+            else if (Shown.Count == 0) { <p class="muted">Chưa có sự kiện</p> }
+            @foreach (var (key, x) in Shown)
+            {
+                <div class="ev k-@x.Kind" @key="key">
+                    <small>@x.Ts.ToLocalTime().ToString("HH:mm:ss")</small>
+                    <span class="ic" aria-hidden="true">@Icon(x.Kind)</span>
+                    <span>@x.Message</span>
+                </div>
+            }
+        </div>
     </section>
 
     <section class="pane alerts p-al">
@@ -187,16 +207,40 @@
     static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt trần")];
     static readonly (string, string)[] Ovl = [("skeleton", "Khung xương"), ("boxes", "Hộp"), ("labels", "Nhãn"), ("zones", "Vùng")];
     Dictionary<string, bool>? _cfg;
-    static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("ch", "Biểu đồ"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
+    static readonly (string, string)[] Filters = [("all", "Tất cả"), ("act", "Chỉ hành động"), ("wait", "Chỉ lý do chờ")];
+
+    // Khóa ổn định (giờ + nội dung + thứ tự trùng) để DOM giữ nguyên khi có dòng mới, trình duyệt neo vị trí cuộn.
+    List<(string, EventItem)> Shown
+    {
+        get
+        {
+            var seen = new Dictionary<string, int>();
+            return (_ev ?? []).Where(e => _flt switch { "act" => e.Kind is "auto" or "manual" or "device", "wait" => e.Kind == "wait", _ => true })
+                .Select(e => { var b = $"{e.Ts.Ticks}|{e.Message}"; seen[b] = seen.GetValueOrDefault(b) + 1; return (b + "|" + seen[b], e); }).ToList();
+        }
+    }
+
+    static string Icon(string k) => k switch { "auto" => "⚡", "wait" => "⏳", "manual" => "👆", "alert" => "⚠", "occupancy" => "👤", _ => "•" };
+
+    // Sự kiện auto/wait mới nhất của thiết bị (danh sách mới nhất trước).
+    string? Reason(string id)
+    {
+        var e = _ev?.FirstOrDefault(x => x.Device == id && x.Kind is "auto" or "wait");
+        if (e is null) return null;
+        return e.Kind == "wait" ? "Đang chờ: " + e.Message : $"Vừa tự {(e.On == false ? "tắt" : "bật")} lúc {e.Ts.ToLocalTime():HH:mm}";
+    }
+
+    static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("lg", "Nhật ký"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
     static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
     HubSnapshot? _s;
     List<AlertItem>? _a;
-    History? _h;
+    List<EventItem>? _ev;
+    bool _unsupported;
+    string _flt = "all";
     EspState? _esp;
     string? _msg;
     string _tab = "ov";
     bool _simOpen;
-    int _min = 360, _tick;
     long _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     SmartHomeAI.Dashboard.Services.AiState _lastAi;
     Timer? _t;
@@ -237,7 +281,8 @@
         }
         _cfg = Ai.State == SmartHomeAI.Dashboard.Services.AiState.Running ? await AiApi.GetConfig() : null;
         _s = await Hub.State(); _a = await Hub.Alerts();
-        if (_tick++ % 2 == 0) _h = await Hub.History(_min);
+        (_ev, _unsupported) = await Hub.Events();
+        if (_pend is { } pd && _s is not null && _s.Devices.TryGetValue(pd.Id, out var cur) && cur.On == pd.On) _pend = null;
         _esp = Sim.Esp.On ? await Sim.EspState() : null;
     }
 
@@ -246,9 +291,9 @@
         if (_cfg is null) return;
         if (await AiApi.SetConfig(k, !_cfg[k])) _cfg[k] = !_cfg[k]; else _msg = "Đổi lớp phủ thất bại";
     }
-    async Task SetMin(int m) { _min = m; _h = await Hub.History(m); }
     async Task Mode(bool auto) => await Act(Hub.SetMode(auto));
-    async Task Dev(string id, bool on) => await Act(Hub.SetDevice(id, on));
+    (string Id, bool On, DateTime At)? _pend;
+    async Task Dev(string id, bool on) { _pend = (id, on, DateTime.UtcNow); await Act(Hub.SetDevice(id, on)); }
     async Task Act(Task<bool> call) { _msg = await call ? null : "Gửi lệnh thất bại"; await Refresh(); }
     async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
     async Task ToggleAi(ChangeEventArgs e) { await Ai.SetEnabled(e.Value is true); }

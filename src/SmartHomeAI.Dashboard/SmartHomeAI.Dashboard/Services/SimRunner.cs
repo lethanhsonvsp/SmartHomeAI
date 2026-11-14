@@ -32,6 +32,7 @@ public class SimProc(string args, string root, string python)
 /// <summary>Giữ hai tiến trình mô phỏng và dọn khi Dashboard tắt; Esp32 có cổng điều khiển HTTP cục bộ.</summary>
 public class SimRunner : IHostedService
 {
+    readonly bool _autoPlug, _autoEsp;
     readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(2) };
     public SimProc Esp { get; }
     public SimProc Plug { get; }
@@ -39,6 +40,7 @@ public class SimRunner : IHostedService
     public SimRunner(IConfiguration cfg)
     {
         string C(string k, string d) => cfg["Sim:" + k] is { Length: > 0 } v ? v : d;
+        _autoPlug = cfg.GetValue("Sim:AutoStartPlug", true); _autoEsp = cfg.GetValue("Sim:AutoStartEsp", false);
         var root = Repo.Root(cfg);
         var py = C("Python", "sim/.venv/bin/python");
         _http.BaseAddress = new Uri($"http://127.0.0.1:{C("EspControlPort", "8091")}");
@@ -46,7 +48,12 @@ public class SimRunner : IHostedService
         Plug = new SimProc(C("PlugArgs", "-m sim p100"), root, py);
     }
 
-    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task StartAsync(CancellationToken ct)
+    {
+        if (_autoPlug) Plug.Set(true);
+        if (_autoEsp) Esp.Set(true);
+        return Task.CompletedTask;
+    }
     public Task StopAsync(CancellationToken ct) { Esp.Set(false); Plug.Set(false); return Task.CompletedTask; }
 
     public async Task<EspState?> EspState()
