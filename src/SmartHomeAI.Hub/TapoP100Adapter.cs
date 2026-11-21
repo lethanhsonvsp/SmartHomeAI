@@ -6,7 +6,8 @@ namespace SmartHomeAI.Hub;
 
 public sealed record TapoLogin(string User, string Password, string Host);
 
-/// <summary>Routes one configured Hub device to a local TPAP bridge. Login arrives once via API (or env); never retries a failed session.</summary>
+/// <summary>Routes one configured Hub device to a local TPAP bridge. Login arrives once via API (or env) and is remembered in a 0600 file
+/// until logout, so a Hub restart reconnects by itself. Only a timeout (plug not on the network yet) is retried; auth failures never are, to avoid a lockout.</summary>
 public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, MessageRouter router, ILogger<TapoP100Adapter> log) : BackgroundService
 {
     readonly Channel<bool> commands = Channel.CreateBounded<bool>(new BoundedChannelOptions(32) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
@@ -28,7 +29,35 @@ public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, Mess
         state = "idle"; return false;
     }
 
-    public void Logout() { session?.Cancel(); error = null; state = "idle"; }
+    public void Logout() { session?.Cancel(); error = null; state = "idle"; Forget(); }
+
+    string SavePath => cfg["TapoP100:SavePath"] ?? "./data/tapo.json";
+    static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(60);
+
+    TapoLogin? Saved()
+    {
+        try { return File.Exists(SavePath) ? JsonSerializer.Deserialize<TapoLogin>(File.ReadAllText(SavePath)) : null; }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { log.LogWarning("Cannot read saved Tapo login ({Type})", ex.GetType().Name); return null; }
+    }
+
+    void Remember(TapoLogin login)
+    {
+        try
+        {
+            if (Path.GetDirectoryName(Path.GetFullPath(SavePath)) is { } dir) Directory.CreateDirectory(dir);
+            // Tạo tệp với quyền 0600 trước khi ghi mật khẩu vào
+            using (var f = new FileStream(SavePath, new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write,
+                UnixCreateMode = OperatingSystem.IsWindows() ? null : UnixFileMode.UserRead | UnixFileMode.UserWrite }))
+                JsonSerializer.Serialize(f, login);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.LogWarning("Cannot save Tapo login ({Type}); it stays in memory only", ex.GetType().Name); }
+    }
+
+    void Forget()
+    {
+        try { File.Delete(SavePath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { log.LogWarning("Cannot delete saved Tapo login ({Type})", ex.GetType().Name); }
+    }
 
     public void Receive(string topic, string payload, bool retained)
     {
@@ -47,8 +76,24 @@ public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, Mess
         if (cfg.GetValue("TapoP100:Enabled", false)
             && Environment.GetEnvironmentVariable("TAPO_USERNAME") is { } u && Environment.GetEnvironmentVariable("TAPO_PASSWORD") is { } pw)
             Login(u, pw, cfg["TapoP100:Host"] ?? "192.168.0.8");
-        await foreach (var login in logins.Reader.ReadAllAsync(ct))
+        else if (Saved() is { } saved) Login(saved.User, saved.Password, saved.Host);
+        TapoLogin? retry = null;
+        while (!ct.IsCancellationRequested)
         {
+            TapoLogin login;
+            if (retry is null) login = await logins.Reader.ReadAsync(ct);
+            else
+            {
+                // Chờ rồi thử lại phiên vừa hết thời gian chờ, trừ khi có đăng nhập mới hoặc đã đăng xuất
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                wait.CancelAfter(RetryDelay);
+                try { await logins.Reader.WaitToReadAsync(wait.Token); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
+                if (logins.Reader.TryRead(out var fresh)) login = fresh;
+                else if (state == "error" && error == "timeout") { login = retry; error = null; state = "connecting"; }
+                else { retry = null; continue; }
+            }
+            retry = null;
             using var s = CancellationTokenSource.CreateLinkedTokenSource(ct);
             session = s;
             try { await Run(login, s.Token); }
@@ -58,6 +103,8 @@ public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, Mess
                 if (state != "error") state = "idle";
                 while (commands.Reader.TryRead(out _)) { } // lệnh cũ không được áp vào phiên sau
             }
+            // chỉ thử lại đăng nhập từng thành công (đã lưu): gõ nhầm IP thì báo lỗi rồi dừng
+            if (state == "error" && error == "timeout" && Saved() == login) retry = login;
         }
     }
 
@@ -81,6 +128,7 @@ public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, Mess
             _ = process.StandardError.ReadToEndAsync(ct);
             if (!await ReadState(process, ct)) return;
             state = "connected";
+            Remember(login);
             log.LogInformation("Tapo P100 ready for {Device}", Device);
             while (!ct.IsCancellationRequested)
             {
@@ -126,7 +174,7 @@ public sealed class TapoP100Adapter(IConfiguration cfg, IMqttPublisher bus, Mess
             // Only known codes may reach logs or the UI.
             var code = error is "auth_locked" or "auth_credentials" or "auth_device_proof" or "timeout" or "session_expired" or "device_error" ? error : "bridge_error";
             this.error = code; state = "error";
-            log.LogError("Tapo failed: {Code}; no automatic retry", code);
+            log.LogError("Tapo failed: {Code}", code);
             return false;
         }
         var on = obj.GetProperty("on").GetBoolean();

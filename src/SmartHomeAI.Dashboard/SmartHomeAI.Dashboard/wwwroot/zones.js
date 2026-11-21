@@ -4,7 +4,7 @@
     const VI = { livingroom: 'Phòng khách', sofa: 'Sofa', door: 'Cửa', other_exit: 'Lối sang khu khác' };
     const COL = { livingroom: '#3b82f6', sofa: '#f59e0b', door: '#ef4444', other_exit: '#a855f7' };
     const NS = 'http://www.w3.org/2000/svg';
-    let root, wrap, zones, sel, drawing, selV, msg, svg, stage, ar = 4 / 3, drag;
+    let root, wrap, zones, sel, drawing, selV, msg, svg, stage, ar = 4 / 3, drag, sides = 4;
 
     const el = (t, a, ...k) => { const e = document.createElement(t); Object.assign(e, a || {}); e.append(...k); return e; };
     const sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
@@ -75,6 +75,10 @@
             act('Xong', finish, drawing.length < 3); act('Hủy vẽ', () => { drawing = null; render(); });
         } else {
             act('Vẽ mới', () => { drawing = []; selV = null; say('Bấm lần lượt từng đỉnh; bấm đỉnh đầu hoặc nút Xong để khép.'); render(); });
+            // Đa giác đều theo số cạnh nhập vào, đặt tại chỗ vùng đang chọn; sau đó kéo từng đỉnh cho khớp
+            const num = el('input', { type: 'number', min: 3, max: 20, value: sides, title: 'Số cạnh (3 đến 20)', oninput: e => { sides = e.target.value; } });
+            num.setAttribute('aria-label', 'Số cạnh của đa giác');
+            side.append(num); act('Tạo đa giác', polygon);
             act('Xóa đỉnh', () => delV(selV), selV === null);
             act('Xóa vùng', () => { delete zones[sel]; render(); }, sel === 'livingroom' || !zones[sel]);
             act('Khôi phục mặc định', restore);
@@ -87,6 +91,20 @@
     function finish() {
         if (drawing.length < 3) return;
         zones[sel] = drawing; drawing = null; say('Đã khép vùng ' + VI[sel] + '. Nhớ bấm Lưu.'); render();
+    }
+    function polygon() {
+        const n = Math.round(+sides);
+        if (!(n >= 3 && n <= 20)) return say('Số cạnh phải từ 3 đến 20.', true);
+        sides = n;
+        const old = zones[sel], xs = old ? old.map(p => p[0]) : [.3, .7], ys = old ? old.map(p => p[1]) : [.3, .7];
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+        // bán kính theo chiều cao khung; chia ar ở trục x để hình đều trên ảnh thật chứ không méo theo tỉ lệ khung
+        const r = Math.min(.45, Math.max(.08, ((Math.max(...xs) - Math.min(...xs)) * ar + Math.max(...ys) - Math.min(...ys)) / 4));
+        zones[sel] = Array.from({ length: n }, (_, i) => {
+            const a = -Math.PI / 2 + Math.PI / n + i * 2 * Math.PI / n;  // lệch nửa bước: 4 cạnh ra hình vuông nằm thẳng
+            return [clamp(cx + r / ar * Math.cos(a)), clamp(cy + r * Math.sin(a))];
+        });
+        selV = null; say('Đã tạo ' + n + ' cạnh cho vùng ' + VI[sel] + '. Kéo từng đỉnh cho khớp rồi bấm Lưu.'); render();
     }
     function delV(i) {
         if (i === null || !zones[sel]) return;

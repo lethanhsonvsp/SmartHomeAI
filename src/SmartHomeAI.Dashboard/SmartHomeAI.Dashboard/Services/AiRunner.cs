@@ -84,10 +84,24 @@ public class AiRunner(IConfiguration cfg, ILogger<AiRunner> log) : IHostedServic
 
     public string Source => WithHost(cfg["Ai:Source"] ?? "0", CameraIp);
 
-    public Task StartAsync(CancellationToken ct) => Task.CompletedTask;
-    public Task StopAsync(CancellationToken ct) => SetEnabled(false);
+    // Người dùng đã bật AI thì nhớ lại (cạnh model.txt): Dashboard khởi động lại (build, mất điện) tự bật, Hub không mất dữ liệu hiện diện
+    string EnabledFile => Path.Combine(Repo.Root(cfg), "ai/config/ai-enabled.txt");
+
+    public Task StartAsync(CancellationToken ct)
+    {
+        if (File.Exists(EnabledFile)) _ = Toggle(true); // không chờ: nạp mô hình mất vài giây, không chặn Dashboard lên
+        return Task.CompletedTask;
+    }
+    public Task StopAsync(CancellationToken ct) => Toggle(false); // tắt theo Dashboard nhưng giữ lựa chọn đã lưu
 
     public async Task SetEnabled(bool on)
+    {
+        try { if (on) File.WriteAllText(EnabledFile, "1"); else File.Delete(EnabledFile); }
+        catch (IOException e) { log.LogWarning("Không lưu được trạng thái bật AI: {Msg}", e.Message); }
+        await Toggle(on);
+    }
+
+    async Task Toggle(bool on)
     {
         if (!await _gate.WaitAsync(0)) return; // chống bấm trùng
         try { if (on) await Start(); else Stop(); }

@@ -50,7 +50,7 @@
         else if (_tp is not null)
         {
             <form class="tapo" @onsubmit="TapoIn">
-                <small>Đăng nhập một lần (tài khoản TP-Link/Tapo); mật khẩu chỉ giữ trong bộ nhớ Hub.</small>
+                <small>Đăng nhập một lần (tài khoản TP-Link/Tapo). Hub lưu lại trên máy này để tự kết nối sau khi khởi động lại; bấm Đăng xuất để xóa.</small>
                 <input name="tuser" type="email" placeholder="Email TP-Link" aria-label="Email TP-Link" autocomplete="username" @bind="_tu" />
                 <input name="tpass" type="password" placeholder="Mật khẩu" aria-label="Mật khẩu" autocomplete="current-password" @bind="_tpw" />
                 <input name="thost" placeholder="IP ổ cắm" aria-label="IP ổ cắm" inputmode="decimal" @bind="_th" />
@@ -81,7 +81,8 @@
             {
                 <div class="teach-cols">
                 <div class="tapo">
-                <img class="teach-live" alt="Camera trực tiếp" src="@(Cam)/stream.mjpg" />
+                <img @key="_camGen" class="teach-live" alt="Camera trực tiếp" src="@(Cam)/stream.mjpg?t=@_camGen" data-base="@(Cam)/stream.mjpg"
+                     onload="this.style.opacity=1;this.dataset.n=0" onerror="camRetry(this)" />
                 <div class="devrow">
                     @foreach (var (k, n) in Postures)
                     {
@@ -139,18 +140,25 @@
 
     bool AiOn => Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting;
 
+    long _camGen; // đổi mỗi lần AI khởi động lại: tạo lại thẻ img, nối lại luồng (luồng cũ đứng hình ở khung cuối)
+
     async Task ToggleAi(ChangeEventArgs e)
     {
-        var on = e.Value is true;
-        await Ai.SetEnabled(on);
+        await Ai.SetEnabled(e.Value is true);
+        await WaitAi();
+    }
+
+    /// <summary>Sau khi AI bật hoặc khởi động lại: chờ cổng HTTP của AI lên (nạp mô hình mất vài giây) rồi nối lại hình.</summary>
+    async Task WaitAi()
+    {
         _ps = null;
-        if (!on) return;
-        // AI cần vài giây nạp mô hình rồi mới mở cổng HTTP
-        for (var i = 0; i < 20 && _ps is null && Ai.State != SmartHomeAI.Dashboard.Services.AiState.Error; i++)
+        for (var i = 0; i < 20 && AiOn && _ps is null; i++)
         {
+            StateHasChanged();
             await Task.Delay(1000);
             _ps = await AiApi.Posture();
         }
+        _camGen = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     async Task Teach(string label)
@@ -174,8 +182,12 @@
         if (_tp?.Host is { } h) _th = h;
     }
 
-    async Task SaveCamIp() => _msg = await Ai.SetCameraIp(_cip) ? null : "IP camera không hợp lệ (dạng 192.168.1.20)";
-    async Task SetModel(ChangeEventArgs e) { if (e.Value is string m) await Ai.SetModel(m); }
+    async Task SaveCamIp()
+    {
+        _msg = await Ai.SetCameraIp(_cip) ? null : "IP camera không hợp lệ (dạng 192.168.1.20)";
+        if (_msg is null) await WaitAi();
+    }
+    async Task SetModel(ChangeEventArgs e) { if (e.Value is string m) { await Ai.SetModel(m); await WaitAi(); } }
 
     async Task TapoIn()
     {
@@ -196,7 +208,7 @@
     {
         "auth_credentials" => "Sai email/mật khẩu hoặc IP",
         "auth_locked" => "Ổ cắm khóa tạm do đăng nhập sai nhiều lần, chờ rồi thử lại",
-        "timeout" => "Hết thời gian chờ, kiểm tra IP và mạng",
+        "timeout" => "Hết thời gian chờ, kiểm tra IP và mạng (ổ cắm từng kết nối được thì Hub tự thử lại mỗi 60 giây)",
         _ => "Đăng nhập thất bại (" + c + ")",
     };
 }

@@ -227,3 +227,4 @@ html:has(.setup), body:has(.setup) { overflow: auto; height: auto; }
 .teach-samples { max-height: calc(100dvh - 220px); overflow-y: auto; }
 @media (max-width: 1100px) { .teach-cols { grid-template-columns: minmax(0, 1fr); } .teach-samples { max-height: none; } }
 @media (max-width: 760px) { .setup-cols { grid-template-columns: minmax(0, 1fr); } .setup { padding: 12px; } }
+.zside input { min-height: 44px; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); padding: 0 8px; font: inherit; }

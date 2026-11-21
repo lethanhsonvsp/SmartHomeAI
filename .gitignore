@@ -18,3 +18,4 @@ firmware/esp32/include/secrets.h
 .pio/
 ai/config/posture-samples*
 appsettings.Local.json
+data/tapo.json
