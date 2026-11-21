@@ -29,7 +29,7 @@ Lớp: **[Lớp]** — Ngành: **[Ngành học]**
 Đồ án tốt nghiệp với đề tài "Nghiên cứu, thiết kế hệ thống nhà thông minh tự động điều khiển thiết bị theo hiện
 diện và tư thế của người sử dụng camera AI" là công trình được thực hiện dưới sự hướng dẫn của thầy/cô
 [họ tên GVHD]. Các số liệu và kết quả nêu trong đồ án là trung thực, được ghi lại trong quá trình thực hiện đề
-tài. Các nội dung tham khảo từ tài liệu khác đều được trích dẫn trong phần Tài liệu tham khảo.
+tài. Các tài liệu được sử dụng trong quá trình thực hiện được liệt kê ở phần Tài liệu tham khảo.
 
 Sinh viên thực hiện xin chịu hoàn toàn trách nhiệm về nội dung của đồ án.
 
@@ -45,19 +45,15 @@ Sinh viên thực hiện
 
 ## LỜI CẢM ƠN
 
-Trong quá trình thực hiện đồ án, sinh viên thực hiện đã nhận được rất nhiều sự giúp đỡ của thầy cô, gia đình và
-bạn bè.
+Em xin chân thành cảm ơn thầy/cô [họ tên GVHD] đã hướng dẫn, góp ý và giúp em tháo gỡ những khó khăn trong
+quá trình thực hiện đồ án.
 
-Trước hết, xin gửi lời cảm ơn chân thành và sâu sắc nhất đến thầy/cô [họ tên GVHD] đã tận tình hướng dẫn, chỉ
-bảo trong suốt thời gian làm đồ án.
+Em cũng xin cảm ơn quý thầy cô Khoa [tên khoa], Trường [tên trường] đã giảng dạy và trang bị cho em những kiến
+thức cần thiết trong suốt quá trình học tập. Xin cảm ơn gia đình và bạn bè đã động viên, hỗ trợ em trong thời
+gian làm đồ án.
 
-Xin chân thành cảm ơn quý thầy cô trong Khoa [tên khoa], Trường [tên trường] đã truyền đạt những kiến thức quý
-báu trong suốt những năm học vừa qua. Những kiến thức đó là nền tảng để hoàn thành đồ án này.
-
-Xin cảm ơn gia đình và bạn bè đã luôn động viên, tạo điều kiện trong suốt quá trình học tập và làm đồ án.
-
-Do thời gian thực hiện có hạn và kiến thức còn nhiều hạn chế nên đồ án không tránh khỏi những thiếu sót. Rất
-mong nhận được sự góp ý của quý thầy cô để đồ án được hoàn thiện hơn.
+Do thời gian và kinh nghiệm còn hạn chế, đồ án vẫn còn những thiếu sót. Em mong nhận được ý kiến góp ý của
+quý thầy cô để tiếp tục hoàn thiện đề tài.
 
 Xin chân thành cảm ơn!
 
@@ -65,7 +61,7 @@ Xin chân thành cảm ơn!
 
 Đồ án trình bày việc thiết kế và xây dựng một hệ thống nhà thông minh cho phòng khách. Hệ thống sử dụng một
 camera IP kết hợp với mô hình ước lượng tư thế người để nhận biết trong phòng có người hay không, người đang ở
-khu vực nào và đang đứng, ngồi hay nằm. Một mạch ESP32 dùng để đo nhiệt độ, độ ẩm, cường độ ánh sáng và trạng
+khu vực nào và đang đứng, ngồi hay nằm. Khối cảm biến được thiết kế với ESP32 để đo nhiệt độ, độ ẩm, cường độ ánh sáng và theo dõi trạng
 thái cửa. Từ các thông tin thu được, bộ xử lý trung tâm tự động bật đèn khi có người và trời tối, bật quạt khi
 có người nằm nghỉ và trời nóng, phát cảnh báo khi cả nhà đã đi vắng mà thiết bị vẫn còn bật.
 
@@ -146,19 +142,18 @@ phỏng đều đạt. Phần mạch ESP32 và việc đo độ chính xác nh�
 
 ## 1. Lý do chọn đề tài
 
-Hiện nay, cùng với sự phát triển của khoa học kỹ thuật, các thiết bị nhà thông minh như ổ cắm Wi-Fi, bóng đèn
-thông minh, camera IP ngày càng phổ biến và có giá thành rẻ. Việc ứng dụng các thiết bị này vào đời sống giúp
-cho sinh hoạt trong gia đình tiện nghi hơn và tiết kiệm điện năng hơn.
+Các thiết bị như ổ cắm Wi-Fi, đèn thông minh và camera IP ngày càng được sử dụng nhiều trong gia đình. Với
+những thiết bị này, người dùng có thể theo dõi hoặc bật tắt từ xa. Tuy nhiên, nếu chỉ điều khiển bằng điện thoại
+hoặc đặt lịch cố định, người dùng vẫn cần tự thao tác và có thể quên tắt thiết bị khi ra khỏi nhà.
 
-Tuy nhiên, phần lớn các thiết bị trên thị trường mới chỉ dừng lại ở việc điều khiển từ xa qua điện thoại hoặc
-hẹn giờ bật tắt. Người dùng vẫn phải tự mở ứng dụng để bật đèn, bật quạt và vẫn thường quên tắt thiết bị khi ra
-khỏi nhà. Nguyên nhân là do hệ thống không biết được trong phòng có người hay không và người đó đang làm gì.
-Một số hệ thống có dùng cảm biến chuyển động PIR, nhưng cảm biến này không phát hiện được người đang ngồi yên
-hoặc nằm nghỉ nên đèn dễ bị tắt khi trong phòng vẫn còn người.
+Một cách tự động hóa là sử dụng cảm biến chuyển động để bật đèn khi có người. Tuy nhiên, cảm biến PIR có thể
+khó phát hiện người ngồi yên hoặc nằm nghỉ trong thời gian dài. Camera kết hợp với mô hình ước lượng tư thế có
+thể cung cấp thêm thông tin về vị trí và tư thế của người trong phòng, từ đó hỗ trợ hệ thống đưa ra quyết định
+phù hợp hơn.
 
-Trong khi đó, các mô hình học sâu ước lượng tư thế người hiện nay đã có thể chạy trên máy tính thông thường
-không cần card đồ họa. Xuất phát từ thực tế trên, đề tài "Nghiên cứu, thiết kế hệ thống nhà thông minh tự động
-điều khiển thiết bị theo hiện diện và tư thế của người sử dụng camera AI" được lựa chọn để thực hiện.
+Từ ý tưởng đó, em lựa chọn đề tài "Nghiên cứu, thiết kế hệ thống nhà thông minh tự động điều khiển thiết bị
+theo hiện diện và tư thế của người sử dụng camera AI". Đồ án tập trung xây dựng và thử nghiệm hệ thống trong
+phạm vi một phòng, sử dụng camera IP và máy tính xử lý không có card đồ họa rời.
 
 ## 2. Mục tiêu của đề tài
 
@@ -187,7 +182,7 @@ Phạm vi nghiên cứu:
 - Hệ thống áp dụng cho một phòng với một camera.
 - Thiết bị được điều khiển là thiết bị bật/tắt qua ổ cắm (đèn, quạt).
 - Hệ thống không nhận dạng danh tính của từng người.
-- Phần học thói quen của người dùng mới dừng ở mức thuật toán, chưa đưa vào giao diện.
+- Phần học thói quen của người dùng mới dừng ở mức thuật toán, chưa được tích hợp vào Hub.
 
 ## 4. Phương pháp nghiên cứu
 
@@ -198,11 +193,11 @@ Phạm vi nghiên cứu:
 
 ## 5. Ý nghĩa khoa học và thực tiễn
 
-Về mặt khoa học, đề tài đưa ra cách xác định "nhà vắng" dựa trên nhiều nguồn thông tin (camera, cảm biến cửa,
-thời gian chờ xác minh) thay vì chỉ dựa vào cảm biến chuyển động.
+Đề tài tìm hiểu cách kết hợp thông tin từ camera, cảm biến cửa và thời gian chờ để xác định trạng thái hiện
+diện. Đây là cơ sở để thử nghiệm các tình huống điều khiển và cảnh báo trong phòng.
 
-Về mặt thực tiễn, hệ thống sử dụng các thiết bị phổ thông, có sẵn trên thị trường, chi phí thấp. Toàn bộ hệ
-thống chạy trong mạng nội bộ nên hình ảnh camera không bị đưa ra ngoài Internet.
+Về ứng dụng, hệ thống được xây dựng từ các thiết bị phổ thông và xử lý hình ảnh trong mạng nội bộ. Kết quả của
+đồ án có thể dùng làm cơ sở để tiếp tục hoàn thiện một mô hình nhà thông minh phù hợp với điều kiện thực tế.
 
 ## 6. Bố cục của đồ án
 
@@ -230,18 +225,18 @@ kết nối mạng để thu thập và trao đổi dữ liệu với nhau. Mộ
 
 - Khối cảm biến: đo các đại lượng vật lý như nhiệt độ, độ ẩm, ánh sáng.
 - Khối xử lý: nhận dữ liệu từ cảm biến, xử lý và đưa ra quyết định.
-- Khối chấp hành: thực hiện lệnh điều khiển như rơ-le, còi, động cơ.
+- Khối chấp hành: sử dụng các thiết bị như rơ-le, còi hoặc động cơ để thực hiện lệnh điều khiển.
 
 ### 1.1.2. Nhà thông minh
 
 Nhà thông minh (Smart Home) là ngôi nhà được trang bị các thiết bị điện, điện tử có thể điều khiển tự động hoặc
-bán tự động. Theo mức độ tự động có thể chia các hệ thống nhà thông minh thành 3 loại:
+bán tự động. Trong phạm vi đồ án, có thể xét một số mức độ điều khiển thường gặp:
 
 - Điều khiển từ xa: người dùng điều khiển thiết bị qua điện thoại.
 - Tự động theo lịch hoặc theo một cảm biến: ví dụ hẹn giờ bật đèn, bật đèn khi có chuyển động.
 - Tự động theo ngữ cảnh: hệ thống nhận biết được tình huống đang diễn ra trong nhà để điều khiển.
 
-Đề tài hướng đến loại thứ ba.
+Hệ thống trong đồ án hướng đến điều khiển theo ngữ cảnh, dựa trên thông tin thu thập được trong phòng.
 
 ## 1.2. Giao thức MQTT
 
@@ -262,7 +257,8 @@ chuyển tin đến tất cả các thiết bị đã đăng ký.
 
 ### 1.2.2. Một số cơ chế của MQTT được sử dụng
 
-- QoS (Quality of Service): mức 0 là gửi một lần không cần xác nhận, mức 1 đảm bảo tin đến nơi ít nhất một lần.
+- QoS (Quality of Service): mức 0 gửi tin không cần xác nhận; mức 1 gửi lại khi cần để tin được chuyển đến
+  ít nhất một lần.
 - Retained: broker lưu lại tin cuối cùng của một chủ đề và gửi ngay cho thiết bị mới đăng ký. Trong đồ án cơ
   chế này được dùng cho trạng thái cửa và trạng thái thiết bị.
 - LWT (Last Will and Testament): thiết bị đăng ký trước với broker một tin báo mất kết nối. Khi thiết bị bị mất
@@ -349,14 +345,14 @@ chân GPIO của ESP32 cấp được nên còi được điều khiển thông 
 Camera IP là loại camera truyền hình ảnh qua mạng. Đồ án sử dụng camera TP-Link Tapo C222, độ phân giải 4MP,
 kết nối Wi-Fi, có hồng ngoại để quan sát ban đêm và hỗ trợ giao thức RTSP.
 
-RTSP (Real Time Streaming Protocol) là giao thức truyền hình ảnh theo thời gian thực. Máy tính đọc hình từ
+RTSP (Real Time Streaming Protocol) là giao thức điều khiển phiên truyền dữ liệu đa phương tiện theo thời gian thực. Máy tính đọc hình từ
 camera thông qua một địa chỉ có dạng:
 
 `rtsp://tài_khoản:mật_khẩu@địa_chỉ_IP:554/stream2`
 
 Camera Tapo C222 có 2 luồng hình: luồng chính (stream1) có độ phân giải cao và luồng phụ (stream2) có độ phân
-giải 640×360. Đồ án sử dụng luồng phụ vì mô hình AI chỉ cần ảnh đầu vào kích thước 640×640, đồng thời giảm được
-băng thông và thời gian xử lý.
+giải 640×360. Đồ án sử dụng luồng phụ để giảm băng thông và chi phí xử lý khi đọc ảnh. Khung hình sau đó được chuẩn bị
+về kích thước 640×640 trước khi đưa vào mô hình.
 
 ## 1.5. Phát hiện người và ước lượng tư thế
 
@@ -380,7 +376,7 @@ gồm: mũi, 2 mắt, 2 tai, 2 vai, 2 khuỷu tay, 2 cổ tay, 2 hông, 2 đầu
 - RTMO [4]: là mô hình ước lượng tư thế nhiều người của nhóm OpenMMLab. Đầu ra gồm 2 mảng: mảng hộp bao và mảng
   khớp.
 
-Các mô hình trên đều được chuyển sang định dạng ONNX và chạy bằng thư viện ONNX Runtime trên CPU [12].
+Các mô hình ước lượng tư thế được sử dụng ở định dạng ONNX và chạy bằng thư viện ONNX Runtime trên CPU [12].
 
 ## 1.6. Thuật toán k láng giềng gần nhất
 
@@ -389,8 +385,8 @@ k láng giềng gần nhất (k-Nearest Neighbors, k-NN) là thuật toán phân
 gần nhất và lấy nhãn xuất hiện nhiều nhất làm kết quả.
 
 Ưu điểm của thuật toán là không cần huấn luyện, khi thêm hoặc xóa mẫu thì có tác dụng ngay. Nhược điểm là khi
-số mẫu lớn thì tốc độ tính toán chậm. Trong đồ án số mẫu chỉ vài chục đến vài trăm nên nhược điểm này không ảnh
-hưởng.
+số mẫu lớn thì tốc độ tính toán chậm. Trong phạm vi đồ án, số lượng mẫu dự kiến chỉ từ vài chục đến vài trăm nên chi phí tính toán được giữ ở mức
+thấp.
 
 ## 1.7. Máy trạng thái hữu hạn
 
@@ -411,9 +407,8 @@ thống được rõ ràng.
 
 ## 1.9. Kết luận chương 1
 
-Chương 1 đã trình bày các kiến thức cơ sở liên quan đến đề tài. Từ đó lựa chọn được giao thức MQTT để truyền
-dữ liệu, ESP32 để thu thập dữ liệu cảm biến, các mô hình ước lượng tư thế chạy trên CPU để nhận biết người.
-Đây là cơ sở để tiến hành phân tích và thiết kế hệ thống ở chương 2.
+Chương 1 đã giới thiệu các kiến thức và công nghệ được sử dụng trong đồ án. Trên cơ sở đó, chương 2 trình bày
+cách phân chia các khối và thiết kế hệ thống.
 
 ---
 
@@ -475,15 +470,14 @@ Chức năng của từng khối:
 - Khối điều khiển ổ cắm: nhận lệnh từ Hub và điều khiển ổ cắm Tapo P100 qua mạng nội bộ.
 - Khối giao diện (Dashboard): hiển thị thông tin và nhận thao tác của người dùng.
 
-Nguyên lý hoạt động của hệ thống: đầu tiên camera truyền hình ảnh về khối AI. Khối AI xử lý từng khung hình và
+Trong quá trình hoạt động, camera truyền hình ảnh về khối AI. Khối AI xử lý các khung hình và
 mỗi giây gửi một tin lên MQTT broker cho biết trong hình có bao nhiêu người, mỗi người ở khu vực nào và tư thế
 gì. Đồng thời ESP32 cứ 10 giây gửi một tin chứa nhiệt độ, độ ẩm, ánh sáng. Hub nhận các tin này, xác định trạng
 thái hiện diện của căn phòng, sau đó so sánh với các điều kiện điều khiển. Nếu thỏa mãn điều kiện thì Hub gửi
 lệnh bật đến khối điều khiển ổ cắm. Khi phát hiện cả nhà đã đi vắng mà thiết bị vẫn còn bật thì Hub gửi lệnh
 bật còi đến ESP32 và hiển thị cảnh báo trên giao diện.
 
-Trong hệ thống, khối AI chỉ có nhiệm vụ quan sát và gửi kết quả, còn việc kết luận có người hay không và việc
-ra quyết định điều khiển đều do Hub thực hiện. Cách phân chia này được chọn vì để kết luận nhà vắng cần kết hợp
+Trong hệ thống, khối AI chỉ có nhiệm vụ quan sát và gửi kết quả, còn việc xác định trạng thái hiện diện và ra quyết định điều khiển do Hub thực hiện. Cách phân chia này được chọn vì để kết luận nhà vắng cần kết hợp
 dữ liệu từ camera, cảm biến cửa và thời gian chờ. Ngoài ra khi chưa có camera thì có thể dùng chương trình mô
 phỏng gửi tin thay cho khối AI để kiểm tra hoạt động của Hub.
 
@@ -623,8 +617,8 @@ Giải thích sơ đồ:
 - Khi khối AI ngừng hoạt động, camera lỗi hoặc quá 10 giây không có dữ liệu mới thì trạng thái là `Unknown`.
   Ở trạng thái này hệ thống không kết luận nhà vắng.
 
-Để tránh nhiễu, khi không thấy người chưa quá 10 giây thì vẫn giữ trạng thái `Occupied`, vì camera có thể không
-phát hiện được người đang ngồi yên trong một vài khung hình.
+Để hạn chế ảnh hưởng khi camera bỏ sót người trong một vài khung hình, hệ thống tạm giữ trạng thái `Occupied`
+trong khoảng 10 giây sau khi không còn phát hiện người.
 
 ## 2.7. Thiết kế khối tự động điều khiển
 
@@ -638,8 +632,8 @@ phát hiện được người đang ngồi yên trong một vài khung hình.
 
 Hệ thống chỉ tự động bật thiết bị, việc tắt thiết bị do người dùng thực hiện.
 
-Để nhận biết người dùng bấm nút trực tiếp trên ổ cắm, Hub thực hiện như sau: nếu ổ cắm báo thay đổi trạng thái
-mà trong 10 giây trước đó Hub không gửi lệnh tương ứng thì đó là thao tác bằng tay.
+Để nhận biết thao tác trên nút của ổ cắm, Hub kiểm tra lịch sử lệnh gần nhất. Nếu ổ cắm báo đổi trạng thái
+mà Hub không gửi lệnh tương ứng trong 10 giây trước đó, thay đổi được xem là thao tác bằng tay.
 
 Ngoài ra để bảo vệ thiết bị, khối tự động điều khiển có thêm các giới hạn sau:
 
@@ -692,9 +686,9 @@ Giao diện của hệ thống gồm 2 trang:
 
 ## 2.11. Kết luận chương 2
 
-Chương 2 đã trình bày yêu cầu, sơ đồ khối và thiết kế của từng khối trong hệ thống. Các giá trị 50 lux, 28 °C,
-30 giây, 2 phút được chọn ban đầu theo kinh nghiệm sử dụng và có thể thay đổi trong tệp cấu hình. Chương tiếp
-theo trình bày quá trình xây dựng hệ thống.
+Chương 2 đã trình bày yêu cầu và thiết kế các khối của hệ thống. Các ngưỡng 50 lux, 28 °C và các khoảng thời
+gian 30 giây, 2 phút được chọn ban đầu theo kinh nghiệm và có thể điều chỉnh trong cấu hình. Việc xây dựng các
+khối theo thiết kế được trình bày ở chương 3.
 
 ---
 
@@ -751,7 +745,7 @@ Chương trình cho ESP32 được viết bằng ngôn ngữ C++ trên PlatformI
 
 Giải thích lưu đồ:
 
-- Đầu tiên ESP32 khởi tạo các chân GPIO, đường I2C, kết nối Wi-Fi và lấy thời gian thực từ máy chủ NTP.
+- ESP32 khởi tạo các chân GPIO, đường I2C, kết nối Wi-Fi và lấy thời gian từ máy chủ NTP.
 - Trong vòng lặp chính, ESP32 kiểm tra kết nối MQTT. Nếu chưa kết nối thì tắt còi và thử kết nối lại sau mỗi
   5 giây.
 - Khi đã kết nối, nếu nhận được lệnh điều khiển còi từ Hub thì bật hoặc tắt còi theo lệnh.
@@ -771,8 +765,9 @@ mạch thật. Trong các lần thử nghiệm, dữ liệu cảm biến đượ
 
 ### 3.3.1. Đọc hình ảnh và chạy mô hình
 
-Khối AI được viết bằng Python. Hình ảnh từ camera được đọc bằng thư viện OpenCV. Mỗi khung hình được thu nhỏ về
-kích thước 640×640, phần còn thiếu được thêm viền màu xám, sau đó đưa vào mô hình bằng thư viện ONNX Runtime.
+Khối AI được viết bằng Python và đọc hình ảnh từ camera bằng thư viện OpenCV. Mỗi khung hình được thay đổi
+kích thước, giữ tỷ lệ và thêm viền màu xám để có ảnh đầu vào 640×640. Ảnh sau đó được đưa vào mô hình thông
+qua ONNX Runtime.
 
 Để có thể thử nhiều mô hình khác nhau, chương trình được viết phần xử lý kết quả cho cả 3 loại mô hình. Loại
 mô hình được nhận biết dựa vào kích thước đầu ra:
@@ -781,7 +776,7 @@ mô hình được nhận biết dựa vào kích thước đầu ra:
 - Đầu ra là 1 mảng [1, 300, 57]: mô hình YOLO26-pose.
 - Đầu ra là 2 mảng: mô hình RTMO.
 
-Các tệp mô hình được tải về từ trang Hugging Face và được kiểm tra mã SHA-256 trước khi sử dụng.
+Các tệp mô hình được tải từ Hugging Face và kiểm tra mã SHA-256 trước khi sử dụng.
 
 ### 3.3.2. Xác định tư thế theo vị trí các khớp
 
@@ -809,8 +804,8 @@ tách được hai tư thế này.
 - Bước 4: khi đã có ít nhất 2 tư thế, mỗi tư thế có ít nhất 5 mẫu thì hệ thống dùng thuật toán k-NN với k = 5
   để xác định tư thế thay cho quy tắc ở mục 3.3.2.
 
-Cách làm này không cần huấn luyện lại mô hình và có thể áp dụng cho nhiều vị trí đặt camera khác nhau. Tuy
-nhiên khi đổi sang mô hình khác thì cần ghi lại mẫu.
+Cách làm này không cần huấn luyện lại mô hình ước lượng tư thế. Khi thay đổi vị trí camera hoặc mô hình, cần
+kiểm tra lại và ghi mẫu phù hợp với điều kiện mới.
 
 ## 3.4. Xây dựng Hub
 
@@ -876,7 +871,7 @@ Sau khi máy tính khởi động lại, các container tự chạy lại, khố
 |---|---|---|
 | 1 | Chưa có phần cứng khi bắt đầu viết phần mềm | Viết chương trình mô phỏng ESP32, ổ cắm, camera gửi đúng loại tin như thật |
 | 2 | Mật khẩu camera có ký tự `@` làm sai địa chỉ RTSP | Mã hóa thành `%40` |
-| 3 | Người nằm bị mô hình bỏ sót vì độ tin cậy chỉ đạt 0,3–0,5 | Hạ ngưỡng từ 0,45 xuống 0,3 và đổi sang mô hình lớn hơn (mục 4.4) |
+| 3 | Người có thể bị mô hình bỏ sót khi độ tin cậy thấp | Hạ ngưỡng từ 0,45 xuống 0,3 và đổi sang mô hình lớn hơn (mục 4.4) |
 | 4 | Camera gắn trần làm lẫn ngồi với nằm | Dạy tư thế theo mẫu (mục 3.3.3) |
 | 5 | Địa chỉ IP camera thay đổi làm mất hình | Cho đổi IP ngay trên trang Cài đặt |
 | 6 | Bật tắt thiết bị dồn dập khi dữ liệu nhiễu | Thêm các lớp bảo vệ (Bảng 2.6) |
@@ -923,7 +918,7 @@ mong muốn. Thời gian trong kịch bản được rút ngắn để giảm th
 | SC01 | Vào phòng khách, trời tối | Đèn tự bật | Đạt |
 | SC02 | Vào phòng khách, trời sáng | Đèn giữ nguyên | Đạt |
 | SC03 | Nằm nghỉ, trời nóng | Quạt tự bật | Đạt |
-| SC04 | Nằm nghỉ, trời mát | Xét theo thói quen | Đạt |
+| SC04 | Nằm nghỉ, trời mát | Xét theo thói quen | Đạt trong lần chạy trước; cần kiểm tra lại trên phiên bản hiện tại |
 | SC05 | Rời chỗ nằm sang khu khác | Không kết luận đi vắng | Đạt |
 | SC06 | Ra cửa rồi quay lại | Hủy xác minh đi vắng | Đạt |
 | SC07 | Ra ngoài, đèn quạt còn bật | Có cảnh báo | Đạt |
@@ -933,7 +928,8 @@ mong muốn. Thời gian trong kịch bản được rút ngắn để giảm th
 | SC11 | Người trở về | Hủy cảnh báo đang có | Đạt |
 | SC12 | Đổi thói quen | Cập nhật đề xuất ngưỡng | Chưa thực hiện |
 
-Kịch bản SC12 chưa thực hiện được vì phần học thói quen chưa được đưa vào Hub. Kết quả của SC01 đến SC11 là kết
+Kịch bản SC12 chưa thực hiện được vì phần học thói quen chưa được đưa vào Hub. Kết quả SC04 liên quan đến
+thói quen cần được kiểm tra lại trên phiên bản hiện tại để làm rõ điều kiện đạt. Kết quả của SC01 đến SC11 là kết
 quả của các lần chạy trước ngày 21/11/2026. Sau các chỉnh sửa trong ngày 21/11/2026 mới chạy lại phần kiểm thử
 đơn vị ở Bảng 4.1.
 
@@ -967,9 +963,11 @@ R01 đến R20. Các kịch bản này có thêm nhiễu và có nhiều sự ki
 | R19 | Trẻ chạy nhảy liên tục giữa các vùng | Đạt: mỗi thiết bị không quá 2 lệnh |
 | R20 | Một ngày dài: đêm, sáng, ngủ trưa, đi vắng, tối | Đạt: tổng 2 lệnh, 1 cảnh báo |
 
-Kết quả 20/20 kịch bản đạt. Qua các kịch bản này cũng thấy được một số điểm chưa hợp lý của hệ thống:
+Cả 20 kịch bản đều đạt kết quả mong đợi trong lần chạy mô phỏng. Tuy nhiên, kết quả này cũng cho thấy một số
+hạn chế cần tiếp tục xem xét:
 
-- Hệ thống chỉ tự bật mà không tự tắt. Ở kịch bản R16, khi nhiệt độ giảm xuống 25 °C thì quạt vẫn chạy.
+- Trong cấu hình mặc định, hệ thống tự bật nhưng không tự tắt theo điều kiện phòng. Ở kịch bản R16, khi nhiệt
+  độ giảm xuống 25 °C thì quạt vẫn chạy.
 - Khi người rời khỏi phòng thì đèn vẫn sáng, hệ thống chỉ cảnh báo khi xác nhận cả nhà đã đi vắng.
 - Ở kịch bản R06, nếu thời gian ra ngoài nhận hàng lâu hơn khoảng 2,5 phút thì hệ thống sẽ cảnh báo.
 - Trường hợp cửa chính vừa mở và người đi vào lối sang khu khác, khuất khỏi camera thì hệ thống có thể kết
@@ -991,10 +989,9 @@ Bốn mô hình YOLOv8-pose với kích thước khác nhau được chạy th�
 
 Nhận xét:
 
-- Với camera nhìn từ trên cao, độ tin cậy của mô hình chỉ đạt khoảng 0,3 đến 0,5. Khi giảm ngưỡng độ tin cậy từ
-  0,45 xuống 0,3 thì số khung hình phát hiện được người tăng lên rõ rệt, với mô hình YOLOv8n-pose tăng từ 19
-  lên 35 khung hình.
-- Mô hình càng lớn thì độ tin cậy càng cao nhưng thời gian xử lý càng lâu.
+- Trong lần thử này, việc giảm ngưỡng độ tin cậy từ 0,45 xuống 0,3 làm tăng số khung hình phát hiện được người.
+  Với YOLOv8n-pose, số khung hình phát hiện tăng từ 19 lên 35 trên tổng số 40 khung hình.
+- Trong các mô hình được thử, mô hình lớn hơn cho độ tin cậy trung bình cao hơn nhưng xử lý chậm hơn.
 - Mô hình YOLOv8m-pose được chọn làm mặc định vì có độ tin cậy trung bình 0,62 và xử lý được khoảng 2,5 khung
   hình mỗi giây.
 
@@ -1037,10 +1034,10 @@ thời điểm khác nhau và gán nhãn để đánh giá đầy đủ.
 |---|---|---|
 | Phát hiện người, xác định khu vực và tư thế | Chạy được trên camera thật; với camera gắn trần cần dạy mẫu tư thế; chưa đo độ chính xác | Đạt một phần |
 | Thu thập môi trường bằng ESP32 | Firmware đã viết, biên dịch được, chưa chạy trên mạch | Đạt một phần |
-| Bộ xử lý trung tâm suy luận hiện diện và ra quyết định | Hoàn thành, 166 ca kiểm thử đạt | Đạt |
+| Bộ xử lý trung tâm suy luận hiện diện và ra quyết định | Đã xây dựng; các bộ Core, Hub và AI có 166 ca kiểm thử đạt | Đạt |
 | Điều khiển ổ cắm thương mại qua mạng nội bộ | Chạy thật với Tapo P100 | Đạt |
 | Giao diện theo dõi, điều khiển, cài đặt | Hoàn thành | Đạt |
-| Bộ kịch bản kiểm thử | 11/12 kịch bản cơ bản và 20/20 kịch bản thực tế đạt trên mô phỏng | Đạt |
+| Bộ kịch bản kiểm thử | 11/12 kịch bản cơ bản từng đạt và 20/20 kịch bản thực tế đạt trên mô phỏng; SC04 cần kiểm tra lại | Đạt |
 
 Ưu điểm:
 
@@ -1055,16 +1052,16 @@ Hạn chế:
 - Chưa đo được độ chính xác nhận diện trên video thật có gán nhãn.
 - Chương trình ESP32 chưa được chạy trên mạch thật.
 - Với một camera, hệ thống không biết được người đang ở phòng khác.
-- Hệ thống chưa tự động tắt thiết bị.
+- Cấu hình mặc định chưa tự động tắt thiết bị theo điều kiện trong phòng; chức năng tắt sau cảnh báo được
+  thiết kế nhưng mặc định không bật.
 - Giao diện chưa có chức năng đăng nhập.
 - Hiện mới có một ổ cắm cho đèn, chức năng bật quạt mới được kiểm tra trên mô phỏng.
 - Phần học thói quen của người dùng chưa được đưa vào hệ thống.
 
 ## 4.8. Kết luận chương 4
 
-Chương 4 đã trình bày kết quả kiểm thử và đánh giá hệ thống. Phần xử lý của Hub đã được kiểm tra bằng 166 ca
-kiểm thử đơn vị và 31 kịch bản trên mô phỏng. Phần camera và ổ cắm đã chạy được với thiết bị thật. Phần xác
-định tư thế mới có kết quả ban đầu.
+Qua kiểm thử, camera và ổ cắm đã hoạt động với hệ thống; các kịch bản điều khiển và cảnh báo được kiểm tra
+chủ yếu trên mô phỏng. Kết quả nhận diện tư thế mới chỉ là bước đầu, cần thêm dữ liệu thực tế để đánh giá.
 
 ---
 
@@ -1072,7 +1069,7 @@ kiểm thử đơn vị và 31 kịch bản trên mô phỏng. Phần camera và
 
 ## 1. Kết luận
 
-Sau thời gian thực hiện, đồ án đã hoàn thành được các nội dung sau:
+Sau quá trình tìm hiểu, xây dựng và thử nghiệm, đồ án đạt được các kết quả sau:
 
 - Tìm hiểu được giao thức MQTT, vi điều khiển ESP32, các cảm biến và các mô hình ước lượng tư thế người.
 - Thiết kế và xây dựng được hệ thống nhà thông minh gồm khối AI, bộ xử lý trung tâm, giao diện web và chương
@@ -1081,7 +1078,7 @@ Sau thời gian thực hiện, đồ án đã hoàn thành được các nội d
 - Xây dựng được chức năng dạy tư thế theo mẫu cho trường hợp camera gắn trần.
 - Xây dựng được 166 ca kiểm thử đơn vị, 32 kịch bản kiểm thử và chương trình mô phỏng phần cứng.
 
-Bên cạnh đó đồ án vẫn còn các hạn chế đã nêu ở mục 4.7, trong đó hạn chế lớn nhất là chưa đo được độ chính xác
+Bên cạnh đó, đồ án vẫn còn các hạn chế đã nêu ở mục 4.7, trong đó hạn chế lớn nhất là chưa đo được độ chính xác
 nhận diện trên dữ liệu thật và chưa chạy được mạch ESP32.
 
 ## 2. Hướng phát triển
