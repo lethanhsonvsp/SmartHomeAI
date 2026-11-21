@@ -4,6 +4,8 @@ Tài liệu cho sinh viên **chưa biết gì** về đề tài: đọc từ Ph�
 
 Phần lý thuyết nền (MQTT là gì, HOG, máy trạng thái, rơ-le...) nằm ở `docs/kien-thuc-nen-tang.md`; nên đọc trước.
 
+**Cập nhật 21/11/2026.** Camera Tapo C222 và ổ cắm Tapo P100 đã chạy thật; firmware ESP32 đã viết nhưng chưa nạp thử; độ chính xác nhận diện vẫn chưa đo trên video có nhãn. Các câu trả lời bên dưới gắn nhãn [CHƯA CHẠY THẬT] cho camera và P100 cần nói lại theo mục "Tình trạng hiện tại" trong `docs/huong-dan-thuc-hien.md`.
+
 **Quy ước trung thực.** Hệ thống hiện chạy bằng **mô phỏng**; chưa có video thật, chưa ghép ESP32, ổ P100, camera C222 thật. Câu trả lời nào dựa vào phần chưa chạy thật được gắn nhãn **[CHƯA CHẠY THẬT]**, và mỗi phần có mục *Ghi chú chạy thật* liệt kê việc cần làm khi có phần cứng. Khi bị hỏi, nói thẳng phần nào đã đo, phần nào chưa; hội đồng đánh giá cao sự trung thực hơn một con số bịa.
 
 **Cách tách tệp sau này.** Mỗi phần bắt đầu bằng dòng `<!-- PHẦN n: tên -->` và tiêu đề `## Phần n`. Tách theo các dấu đó thành `docs/on-tap/01-...md`, `02-...md`... và giữ phần Mục lục này làm `docs/on-tap/README.md`.

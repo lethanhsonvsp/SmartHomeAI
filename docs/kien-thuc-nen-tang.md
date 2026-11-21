@@ -4,7 +4,7 @@ Tài liệu giải thích **từng công nghệ và khái niệm** dùng trong �
 
 Cách dùng: đọc Mục 0 để có bức tranh chung, đọc tiếp theo thứ tự. Gặp từ lạ thì tra Mục 19 (bảng thuật ngữ). Tài liệu ôn câu hỏi hội đồng nằm ở `docs/on-tap-bao-ve.md`; tài liệu này là phần **lý thuyết** đứng trước nó.
 
-Quy ước: những chỗ ghi **[chưa chạy thật]** nghĩa là hệ thống mới chạy bằng mô phỏng, chưa thử với phần cứng hay video thật.
+Quy ước: những chỗ ghi **[chưa chạy thật]** nghĩa là lúc viết, phần đó mới chạy bằng mô phỏng. Từ 21/11/2026 camera Tapo C222 và ổ cắm P100 đã chạy thật; tình trạng mới nhất xem mục "Tình trạng hiện tại" trong `docs/huong-dan-thuc-hien.md`. Người mới nên bắt đầu ở `docs/README.md`.
 
 ## Mục lục
 0. Bức tranh chung qua một buổi tối
@@ -57,7 +57,7 @@ Các khối và đường đi của thông tin:
 
 Nguyên tắc quan trọng nhất của thiết kế: **AI chỉ nhìn và báo cáo; Hub mới là bộ não ra quyết định.** Lý do ở Mục 8.
 
-Phần cứng thật chưa có, nên mọi thứ đang chạy với **mô phỏng** (thư mục `sim/`): chương trình giả làm ESP32, ổ cắm và camera, phát các tin y như thật. Cách này cho phép viết và kiểm thử toàn bộ phần mềm trước.
+Khi chưa có phần cứng, mọi thứ chạy với **mô phỏng** (thư mục `sim/`): chương trình giả làm ESP32, ổ cắm và camera, phát các tin y như thật. Cách này cho phép viết và kiểm thử toàn bộ phần mềm trước, rồi ghép từng thiết bị thật vào thay đúng phần mô phỏng tương ứng (camera và ổ cắm P100 đã ghép xong).
 
 ---
 
