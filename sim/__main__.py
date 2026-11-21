@@ -4,7 +4,7 @@ from . import esp32, fuzz, p100, player
 from .scenarios import SCENARIOS
 
 p = argparse.ArgumentParser(prog="python -m sim")
-p.add_argument("--host", default="localhost")
+p.add_argument("--host", default=os.environ.get("SMARTHOME_MQTT_HOST", "localhost"))
 p.add_argument("--port", type=int, default=1883)
 p.add_argument("--user", help="MQTT user (hoặc SMARTHOME_MQTT_USER)")
 p.add_argument("--password", help="MQTT password (hoặc SMARTHOME_MQTT_PASSWORD)")

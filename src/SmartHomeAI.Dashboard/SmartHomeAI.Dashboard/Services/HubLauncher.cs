@@ -4,7 +4,7 @@ namespace SmartHomeAI.Dashboard.Services;
 
 public enum HubStatus { Checking, Running, Started, Failed }
 
-/// <summary>Khi Dashboard lên: bật Mosquitto (nếu cần) và Hub (nếu /health không đáp). Chỉ dừng Hub do chính nó tạo.</summary>
+/// <summary>Khi Dashboard lên: bật Mosquitto và PostgreSQL (nếu cần, qua docker compose) và Hub (nếu /health không đáp). Chỉ dừng Hub do chính nó tạo.</summary>
 public class HubLauncher(IConfiguration cfg, ILogger<HubLauncher> log) : IHostedService
 {
     Process? _child;
@@ -25,7 +25,8 @@ public class HubLauncher(IConfiguration cfg, ILogger<HubLauncher> log) : IHosted
         {
             var root = Repo.Root(cfg);
             var url = cfg["Hub:BaseUrl"] ?? "http://localhost:5002";
-            if (cfg.GetValue("Startup:StartMosquitto", true) && !Repo.PortOpen("localhost", 1883)) await Mosquitto(root);
+            if (cfg.GetValue("Startup:StartMosquitto", true) && !Repo.PortOpen("localhost", 1883)) await Compose(root, "mosquitto");
+            if (cfg.GetValue("Hub:UsePostgres", false) && !await PostgresReady(root)) await Compose(root, "postgres");
             if (await Healthy(url)) { Status = HubStatus.Running; return; }
 
             var psi = Repo.Psi(cfg["Hub:Command"] ?? "dotnet", cfg["Hub:Args"] ?? "run --project src/SmartHomeAI.Hub --no-launch-profile", root, false);
@@ -45,17 +46,31 @@ public class HubLauncher(IConfiguration cfg, ILogger<HubLauncher> log) : IHosted
 
     void Fail(string why) { Status = HubStatus.Failed; Detail = why; log.LogWarning("Hub không chạy được: {Why}", why); }
 
-    async Task Mosquitto(string root)
+    async Task Compose(string root, string service)
     {
         try
         {
-            log.LogInformation("Cổng 1883 chưa mở, chạy docker compose up -d mosquitto");
-            using var p = Process.Start(Repo.Psi("docker", "compose up -d mosquitto", root, false));
+            log.LogInformation("Chạy docker compose up -d {Service}", service);
+            using var p = Process.Start(Repo.Psi("docker", $"compose up -d {service}", root, false));
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             await p!.WaitForExitAsync(cts.Token);
             if (p.ExitCode != 0) log.LogWarning("docker compose thoát mã {Code}", p.ExitCode);
+            else if (service == "postgres")
+                for (var i = 0; i < 30 && !await PostgresReady(root); i++) await Task.Delay(1000);
         }
-        catch (Exception e) { log.LogWarning("Không bật được Mosquitto: {Msg}", e.Message); }
+        catch (Exception e) { log.LogWarning("Không bật được {Service}: {Msg}", service, e.Message); }
+    }
+
+    static async Task<bool> PostgresReady(string root)
+    {
+        try
+        {
+            using var p = Process.Start(Repo.Psi("docker", "compose exec -T postgres pg_isready -U smarthome", root, false));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await p!.WaitForExitAsync(cts.Token);
+            return p.ExitCode == 0;
+        }
+        catch (Exception) { return false; }
     }
 
     static async Task<bool> Healthy(string url)

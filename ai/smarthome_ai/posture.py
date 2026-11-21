@@ -3,8 +3,17 @@
 Hộp: tỉ lệ rộng/cao (đã quy về pixel bằng aspect khung) -> standing / sitting / lying.
 moving: tâm dịch nhiều (đơn vị chiều cao hộp mỗi giây) so với khung trước.
 Có keypoints COCO-17 thì dùng góc thân (vai->hông) và khoảng hông-gối.
+
+Cam trần soi chéo làm quy tắc trên lẫn ngồi/nằm. Samples: người dùng ghi mẫu khớp xương từng tư thế ngay trên
+camera của mình (Dashboard > Cài đặt), đủ mẫu thì phân loại bằng k láng giềng gần nhất thay cho quy tắc.
 """
-import math
+import json
+import os
+import time
+from pathlib import Path
+
+LABELS = ("standing", "sitting", "lying")
+MIN_SAMPLES = 5    # mỗi tư thế, và cần ít nhất 2 tư thế thì mới dùng mẫu
 
 MOVE_SPEED = 0.5   # chiều cao hộp / giây
 LYING_AR = 1.1     # rộng/cao
@@ -36,10 +45,87 @@ def _kp_posture(kp, aspect=16 / 9):
     return None
 
 
-def classify(box, speed: float, aspect: float = 16 / 9, keypoints=None) -> str:
+def features(kp, aspect=16 / 9):
+    """17 khớp quy về tâm và chia cho độ trải lớn nhất: không phụ thuộc vị trí và cỡ người trong khung. None nếu thiếu khớp."""
+    if not kp or len(kp) < 17:
+        return None
+    pts = [(x * aspect, y) for x, y, _ in kp[:17]]
+    cx, cy = sum(p[0] for p in pts) / 17, sum(p[1] for p in pts) / 17
+    s = max(max(abs(x - cx), abs(y - cy)) for x, y in pts) or 1.0
+    return [round((v - c) / s, 3) for x, y in pts for v, c in ((x, cx), (y, cy))]
+
+
+class Samples:
+    """Mẫu tư thế đã ghi: {label: [{"id", "f": features}]}, lưu JSON cạnh zones.json; ảnh xem lại ở thư mục <tên tệp bỏ .json>/<id>.jpg."""
+
+    def __init__(self, path=None):
+        self.path, self.items = path and Path(path), {}
+        self.dir = self.path and self.path.with_suffix("")
+        try:
+            data = json.loads(self.path.read_text()) if path else {}
+            for k in LABELS:
+                # bản cũ lưu thẳng danh sách đặc trưng (không id, không ảnh)
+                rows = [e if isinstance(e, dict) else {"id": f"{LABELS.index(k)}{i:04d}", "f": e} for i, e in enumerate(data.get(k, []))]
+                self.items[k] = [e for e in rows if len(e["f"]) == 34 and str(e["id"]).isdigit()]
+        except (OSError, ValueError, TypeError, AttributeError, KeyError):
+            self.items = {}  # chưa có tệp hoặc tệp hỏng: coi như chưa ghi mẫu
+
+    def counts(self):
+        return {k: len(self.items.get(k, [])) for k in LABELS}
+
+    def ids(self):
+        return {k: [e["id"] for e in self.items.get(k, [])] for k in LABELS}
+
+    @property
+    def trained(self):
+        return sum(n >= MIN_SAMPLES for n in self.counts().values()) >= 2
+
+    def add(self, label, feat, jpeg=None):
+        sid = str(time.time_ns())
+        self.items.setdefault(label, []).append({"id": sid, "f": feat})
+        if jpeg and self.dir:
+            self.dir.mkdir(exist_ok=True)
+            (self.dir / f"{sid}.jpg").write_bytes(jpeg)
+
+    def image(self, sid):
+        """Ảnh xem lại của mẫu; None nếu id lạ hoặc không có ảnh. Chỉ nhận id toàn chữ số: không thoát được khỏi thư mục mẫu."""
+        try:
+            return (self.dir / f"{sid}.jpg").read_bytes() if self.dir and str(sid).isdigit() else None
+        except OSError:
+            return None
+
+    def remove(self, sid):
+        for rows in self.items.values():
+            rows[:] = [e for e in rows if e["id"] != sid]
+        if self.dir and str(sid).isdigit():
+            (self.dir / f"{sid}.jpg").unlink(missing_ok=True)
+        self.save()
+
+    def clear(self):
+        for sid in [i for v in self.ids().values() for i in v]:
+            if self.dir:
+                (self.dir / f"{sid}.jpg").unlink(missing_ok=True)
+        self.items = {}
+        self.save()
+
+    def save(self):
+        if self.path:
+            tmp = self.path.with_name(self.path.name + ".tmp")
+            tmp.write_text(json.dumps(self.items))
+            os.replace(tmp, self.path)
+
+    def classify(self, feat, k=5):
+        near = sorted((sum((a - b) ** 2 for a, b in zip(feat, e["f"])), lab) for lab, rows in self.items.items() for e in rows)[:k]
+        votes = [lab for _, lab in near]
+        return max(LABELS, key=votes.count)
+
+
+def classify(box, speed: float, aspect: float = 16 / 9, keypoints=None, samples=None) -> str:
     """speed: chiều cao hộp/giây (0 nếu chưa biết). aspect = rộng/cao khung hình."""
     if speed > MOVE_SPEED:
         return "moving"
+    if samples and samples.trained and (f := features(keypoints, aspect)):
+        return samples.classify(f)
     kp = _kp_posture(keypoints, aspect)
     if kp:
         return kp

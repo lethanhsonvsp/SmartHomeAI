@@ -1,0 +1,197 @@
+@page "/setup"
+@rendermode InteractiveServer
+@inject HubClient Hub
+@inject IConfiguration Cfg
+@inject SmartHomeAI.Dashboard.Services.AiRunner Ai
+@inject SmartHomeAI.Dashboard.Services.SimRunner Sim
+@inject SmartHomeAI.Dashboard.Services.AiApi AiApi
+@inject NavigationManager Nav
+
+<PageTitle>Cài đặt - SmartHomeAI</PageTitle>
+
+<div class="setup">
+    <div class="head"><h3>Cài đặt</h3><a class="btn" href="/">← Dashboard</a></div>
+    @if (_msg is not null) { <div class="err warn" role="alert">@_msg</div> }
+
+    <div class="setup-cols">
+    <div class="setup-side">
+    <section class="pane">
+        <span class="eyebrow">CAMERA</span><h3>IP camera</h3>
+        <form class="tapo" @onsubmit="SaveCamIp">
+            <small>Chỉ đổi địa chỉ máy trong URL RTSP; tài khoản, cổng và luồng giữ nguyên. AI đang chạy sẽ tự khởi động lại.</small>
+            <input name="camip" placeholder="192.168.1.20" aria-label="IP camera" inputmode="decimal" disabled="@Ai.Busy" @bind="_cip" />
+            <button class="btn on" type="submit" disabled="@Ai.Busy">Lưu IP</button>
+            @if (!Ai.Source.Contains("://")) { <small class="err">Nguồn AI là webcam (@Ai.Source), không phải URL RTSP: đặt AI_SOURCE trong .env (hoặc Ai:Source) thì IP mới có tác dụng.</small> }
+            else { <small class="muted">Đang dùng: @System.Text.RegularExpressions.Regex.Replace(Ai.Source, "//[^@/]*@", "//***@")</small> }
+        </form>
+    </section>
+
+    <section class="pane">
+        <span class="eyebrow">AI</span><h3>Mô hình nhận người</h3>
+        <div class="tapo">
+            <select aria-label="Mô hình nhận người" disabled="@Ai.Busy" value="@Ai.Model" @onchange="SetModel">
+                @foreach (var (n, l) in Ai.Available)
+                {
+                    <option value="@n">@l</option>
+                }
+            </select>
+            @if (Ai.Available.Count() < 2) { <small class="err">Máy này chỉ có một mô hình. Docker: đặt AI_MODELS trong .env rồi build lại; chạy trực tiếp: ai/tools/fetch_model.py.</small> }
+            else { <small class="muted">Đổi mô hình sẽ khởi động lại AI nếu đang chạy.</small> }
+        </div>
+    </section>
+
+    <section class="pane">
+        <span class="eyebrow">Ổ CẮM</span><h3>Tapo P100</h3>
+        @if (_tp is { State: "connected" })
+        {
+            <div class="devrow"><small>Đã đăng nhập (@(_tp.Host ?? _th)). Đổi IP: đăng xuất rồi đăng nhập lại.</small><button class="btn" @onclick="TapoOut">Đăng xuất</button></div>
+        }
+        else if (_tp is { State: "connecting" }) { <div class="warn">Đang đăng nhập ổ cắm P100...</div> }
+        else if (_tp is not null)
+        {
+            <form class="tapo" @onsubmit="TapoIn">
+                <small>Đăng nhập một lần (tài khoản TP-Link/Tapo); mật khẩu chỉ giữ trong bộ nhớ Hub.</small>
+                <input name="tuser" type="email" placeholder="Email TP-Link" aria-label="Email TP-Link" autocomplete="username" @bind="_tu" />
+                <input name="tpass" type="password" placeholder="Mật khẩu" aria-label="Mật khẩu" autocomplete="current-password" @bind="_tpw" />
+                <input name="thost" placeholder="IP ổ cắm" aria-label="IP ổ cắm" inputmode="decimal" @bind="_th" />
+                <button class="btn on" type="submit">Đăng nhập</button>
+                @if (_tp.Error is { } te) { <small class="err">@TapoErr(te)</small> }
+            </form>
+        }
+        else { <p class="muted">Hub chưa online hoặc chưa hỗ trợ đăng nhập P100.</p> }
+    </section>
+    </div>
+    <section class="pane teach">
+        <div class="head">
+            <div class="section-title"><span class="eyebrow">AI</span><h3>Dạy tư thế theo camera này</h3></div>
+            <label class="switch" title="Bật/tắt AI camera">
+                <input type="checkbox" aria-label="Bật hoặc tắt AI camera" checked="@AiOn" disabled="@Ai.Busy" @onchange="ToggleAi" />
+                <span class="slider"></span>
+            </label>
+            <span>Camera AI: @(Ai.State switch { SmartHomeAI.Dashboard.Services.AiState.Running => "đang chạy", SmartHomeAI.Dashboard.Services.AiState.Starting => "đang khởi động...", SmartHomeAI.Dashboard.Services.AiState.Error => "lỗi", _ => "tắt" })</span>
+        </div>
+        <div class="tapo">
+            <small>Camera gắn trần làm quy tắc mặc định lẫn ngồi và nằm. Bấm một tư thế, trong 5 giây vào đúng tư thế đó ở chỗ hay dùng rồi giữ yên đến khi ghi xong (8 ảnh, mỗi giây một ảnh). Nên ghi mỗi tư thế vài lần ở vài hướng khác nhau, rồi bỏ các ảnh sai. Cần ít nhất 2 tư thế, mỗi tư thế 5 mẫu.</small>
+            @if (_ps is null)
+            {
+                <small class="err">Bật công tắc Camera AI ở trên để có hình và ghi mẫu.</small>
+                @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Error) { <pre class="err logtail">@string.Join("\n", Ai.LogTail)</pre> }
+            }
+            else
+            {
+                <div class="teach-cols">
+                <div class="tapo">
+                <img class="teach-live" alt="Camera trực tiếp" src="@(Cam)/stream.mjpg" />
+                <div class="devrow">
+                    @foreach (var (k, n) in Postures)
+                    {
+                        var kk = k;
+                        <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="() => Teach(kk)">Ghi @n</button>
+                    }
+                    <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="@(() => Teach("clear"))">Xóa hết</button>
+                </div>
+                @if (_ps.Capture is { } c)
+                {
+                    <b role="status">@(c.Wait > 0 ? $"Vào tư thế \"{Postures.First(x => x.Item1 == c.Label).Item2}\": còn {c.Wait} giây" : $"Đang ghi, giữ yên: còn {c.Left} mẫu")</b>
+                }
+                else { <small class="@(_ps.Trained ? "muted" : "err")">@(_ps.Trained ? "Đang phân loại theo mẫu đã ghi (nút \"ở sofa coi là nằm\" không còn tác dụng)." : "Chưa đủ mẫu: vẫn dùng quy tắc mặc định.")</small> }
+                </div>
+                <div class="tapo teach-samples">
+                @foreach (var (k, n) in Postures)
+                {
+                    var ids = _ps.Samples?.GetValueOrDefault(k) ?? [];
+                    @if (ids.Length == 0) { continue; }
+                    <small><b>@n</b>: @ids.Length mẫu. Bấm ✕ để bỏ ảnh sai tư thế hoặc khung xương lệch.</small>
+                    <div class="teach-grid">
+                        @foreach (var id in ids)
+                        {
+                            var sid = id;
+                            <figure @key="sid">
+                                <img alt="" loading="lazy" src="@(Cam)/posture/img/@(sid).jpg" onerror="this.parentElement.classList.add('noimg')" />
+                                <button class="btn" aria-label="Bỏ mẫu @n này" title="Bỏ mẫu này" @onclick="() => Drop(sid)">✕</button>
+                            </figure>
+                        }
+                    </div>
+                }
+                </div>
+                </div>
+            }
+        </div>
+    </section>
+    </div>
+</div>
+
+@code {
+    TapoStatus? _tp;
+    string _tu = "", _tpw = "", _th = "", _cip = "";
+    string? _msg;
+    static readonly (string, string)[] Postures = [("sitting", "Ngồi"), ("lying", "Nằm"), ("standing", "Đứng")];
+    SmartHomeAI.Dashboard.Services.PostureStatus? _ps;
+
+    // Trình duyệt lấy ảnh thẳng từ cổng AI, như luồng camera ở Dashboard
+    string Cam => (Cfg["Camera:StreamUrl"] ?? "http://localhost:8090/stream.mjpg").Replace("/stream.mjpg", "").Replace("localhost", new Uri(Nav.Uri).Host);
+    async Task Drop(string id) => _ps = await AiApi.Posture(delete: id) ?? _ps;
+
+    bool AiOn => Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting;
+
+    async Task ToggleAi(ChangeEventArgs e)
+    {
+        var on = e.Value is true;
+        await Ai.SetEnabled(on);
+        _ps = null;
+        if (!on) return;
+        // AI cần vài giây nạp mô hình rồi mới mở cổng HTTP
+        for (var i = 0; i < 20 && _ps is null && Ai.State != SmartHomeAI.Dashboard.Services.AiState.Error; i++)
+        {
+            await Task.Delay(1000);
+            _ps = await AiApi.Posture();
+        }
+    }
+
+    async Task Teach(string label)
+    {
+        _ps = await AiApi.Posture(label);
+        // Ghi chạy trong AI: hỏi lại mỗi giây tới khi xong (tối đa 90 giây).
+        for (var i = 0; i < 90 && _ps?.Capture is not null; i++)
+        {
+            StateHasChanged();
+            await Task.Delay(1000);
+            _ps = await AiApi.Posture();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _th = Cfg["TapoP100:Host"] ?? "192.168.0.8";
+        _cip = Ai.CameraIp ?? (Uri.TryCreate(Ai.Source, UriKind.Absolute, out var u) ? u.Host : "");
+        _tp = await Hub.Tapo();
+        _ps = await AiApi.Posture();
+        if (_tp?.Host is { } h) _th = h;
+    }
+
+    async Task SaveCamIp() => _msg = await Ai.SetCameraIp(_cip) ? null : "IP camera không hợp lệ (dạng 192.168.1.20)";
+    async Task SetModel(ChangeEventArgs e) { if (e.Value is string m) await Ai.SetModel(m); }
+
+    async Task TapoIn()
+    {
+        // Ổ cắm giả và thật cùng một ID: tắt giả trước khi đăng nhập thật.
+        await Task.Run(() => Sim.Plug.Set(false));
+        _msg = await Hub.TapoLogin(_tu, _tpw, _th) ? null : "Thiếu email, mật khẩu hoặc IP không hợp lệ";
+        _tpw = "";
+        // Đăng nhập chạy nền ở Hub: hỏi lại vài lần cho tới khi hết "connecting".
+        for (var i = 0; i < 10; i++)
+        {
+            _tp = await Hub.Tapo(); StateHasChanged();
+            if (_tp is not { State: "connecting" }) break;
+            await Task.Delay(1000);
+        }
+    }
+    async Task TapoOut() { await Hub.TapoLogout(); _tp = await Hub.Tapo(); }
+    static string TapoErr(string c) => c switch
+    {
+        "auth_credentials" => "Sai email/mật khẩu hoặc IP",
+        "auth_locked" => "Ổ cắm khóa tạm do đăng nhập sai nhiều lần, chờ rồi thử lại",
+        "timeout" => "Hết thời gian chờ, kiểm tra IP và mạng",
+        _ => "Đăng nhập thất bại (" + c + ")",
+    };
+}

@@ -1,3 +1,4 @@
+import time
 import json
 from pathlib import Path
 
@@ -136,3 +137,30 @@ def test_track_kept_through_gaps_then_expires():
 def test_zone_stable_default_is_6():
     import inspect
     assert inspect.signature(run).parameters["stable_frames"].default == 6
+
+
+def test_sofa_lying_maps_sitting_in_sofa():
+    d = [{"box": [0.44, 0.45, 0.56, 0.8], "conf": .9}]  # hộp dáng ngồi, tâm trong sofa
+    last = lambda **kw: _run_script([d] * 8, **kw)[-1][0]["posture"]
+    assert last() == "sitting"
+    assert last(sofa_lying=True) == "lying"
+    d = [{"box": [0.47, 0.45, 0.53, 0.8], "conf": .9}]  # hộp dáng đứng, tâm trong sofa, chân ngoài
+    assert last() == "standing"
+    assert last(sofa_lying=True) == "lying"
+
+
+def test_capture_posture_samples_then_use_them(tmp_path):
+    # Ghi 15 khung "lying" + 5 mẫu sitting có sẵn: sau đó cùng khớp xương ấy ra lying dù hộp đứng (quy tắc sẽ nói khác)
+    from smarthome_ai.stream import StreamServer
+    kp = [[.2 + i * .03, .3 + i * .02, .9] for i in range(17)]
+    d = [{"box": [0.4, 0.1, 0.5, 0.9], "conf": .9, "keypoints": kp}]
+    srv = StreamServer(0, host="127.0.0.1", zones_path=tmp_path / "zones.json")
+    try:
+        for _ in range(posture.MIN_SAMPLES):
+            srv.samples.add("sitting", [0.0] * 34)
+        srv.capture = {"label": "lying", "start": time.time(), "left": 15}
+        ps = _run_script([d] * 30, viewer=srv)
+        assert srv.capture is None and srv.samples.counts()["lying"] == 15  # không đặt gap: lấy mọi khung and (tmp_path / "posture-samples.json").exists()
+        assert ps[-1][0]["posture"] == "lying"
+    finally:
+        srv.close()

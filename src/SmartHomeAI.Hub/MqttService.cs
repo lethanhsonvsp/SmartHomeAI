@@ -2,7 +2,7 @@ using MQTTnet;
 
 namespace SmartHomeAI.Hub;
 
-public class MqttService(MessageRouter router, MqttBus bus, IConfiguration cfg, ILogger<MqttService> logger) : BackgroundService
+public class MqttService(MessageRouter router, MqttBus bus, IConfiguration cfg, ILogger<MqttService> logger, TapoP100Adapter tapo) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -11,7 +11,12 @@ public class MqttService(MessageRouter router, MqttBus bus, IConfiguration cfg, 
         using var client = new MqttClientFactory().CreateMqttClient();
         client.ApplicationMessageReceivedAsync += e =>
         {
-            try { router.Handle(e.ApplicationMessage.Topic, e.ApplicationMessage.ConvertPayloadToString() ?? ""); }
+            try
+            {
+                var payload = e.ApplicationMessage.ConvertPayloadToString() ?? "";
+                router.Handle(e.ApplicationMessage.Topic, payload);
+                tapo.Receive(e.ApplicationMessage.Topic, payload, e.ApplicationMessage.Retain);
+            }
             catch (Exception ex) { logger.LogError(ex, "Handler failed for {Topic}", e.ApplicationMessage.Topic); }
             return Task.CompletedTask;
         };

@@ -14,38 +14,24 @@
 
 <div class="app" data-tab="@_tab">
     <header class="status p-ov">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">⌂</span><span><strong>SmartHome<span>AI</span></strong><small>Không gian thông minh của bạn</small></span></div>
         <span class="chip"><span class="dot @(HubUp ? "up" : "down")"></span>Hub <small>@HubText</small></span>
-        @if (_s is not null)
-        {
-            var e = _s.Env.Values.FirstOrDefault(); var d = _s.Door.Values.FirstOrDefault();
-            <span class="chip occ @_s.Occupancy" title="@Note(_s.Occupancy)">@OccVi(_s.Occupancy)</span>
-            <span class="chip">@_s.PersonCount người</span>
-            <span class="chip seg">
-                <button class="btn @(_s.Mode == "auto" ? "on" : "")" @onclick="() => Mode(true)">Auto</button><button class="btn @(_s.Mode == "manual" ? "on" : "")" @onclick="() => Mode(false)">Manual</button>
-            </span>
-            @if (e is not null)
-            {
-                <span class="chip">🌡 @e.TempC.ToString("0.#") °C</span>
-                <span class="chip">💧 @e.Humidity.ToString("0.#") %</span>
-                <span class="chip">☀ @e.Lux.ToString("0") lux</span>
-            }
-            @if (d is not null) { <span class="chip">Cửa: @(d.Open ? "Mở" : "Đóng")</span> }
-            @if (_s.Env.Count + _s.Door.Count == 0) { <span class="chip">Chưa có số liệu cảm biến</span> }
-        }
-        else { <span class="chip err">Không kết nối được Hub</span> }
+        @if (_s is null) { <span class="chip err">Không kết nối được Hub</span> }
         @if (_msg is not null) { <span class="chip err">@_msg</span> }
+        <a class="btn" href="/setup">Cài đặt</a>
         <button class="btn simbtn" @onclick="() => _simOpen = !_simOpen">Mô phỏng</button>
     </header>
 
     <section class="pane cam p-cam">
         <div class="head">
-            <h3>Camera</h3>
+            <div class="section-title"><span class="eyebrow">GIÁM SÁT TRỰC QUAN</span><h3>Camera</h3></div>
             <label class="switch" title="Bật/tắt bộ AI">
-                <input type="checkbox" checked="@(Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting)"
+                <input type="checkbox" aria-label="Bật hoặc tắt AI camera" checked="@(Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting)"
                        disabled="@Ai.Busy" @onchange="ToggleAi" />
                 <span class="slider"></span>
             </label>
             <span>AI: @AiText</span>
+            <small class="muted">@Ai.Model</small>
         </div>
         @if (Ai.State == SmartHomeAI.Dashboard.Services.AiState.Error)
         {
@@ -80,10 +66,17 @@
     </section>
 
     <section class="pane people p-ov">
-        <h3>Đang thấy</h3>
-        <div class="scroll">
-            @if (_s?.Persons is { Count: > 0 })
+        <div class="head">
+            <div class="section-title"><span class="eyebrow">CAMERA NHẬN DIỆN</span><h3>Hiện diện</h3></div>
+            @if (_s is not null)
             {
+                <span class="chip occ @_s.Occupancy" title="@Note(_s.Occupancy)">@OccVi(_s.Occupancy)</span>
+                <span class="chip">@_s.PersonCount người</span>
+            }
+        </div>
+        @if (_s?.Persons is { Count: > 0 })
+        {
+            <div class="scroll">
                 <table>
                     <thead><tr><th>ID</th><th>Vùng</th><th>Tư thế</th></tr></thead>
                     <tbody>
@@ -93,34 +86,66 @@
                     }
                     </tbody>
                 </table>
-            }
-            else { <p class="muted">Không thấy ai</p> }
-        </div>
+            </div>
+        }
     </section>
 
     <section class="pane devs p-ov">
-        <h3>Đèn / quạt trần</h3>
-        @if (_s is not null && !(_s.Online.TryGetValue("device", out var plugOn) && plugOn))
+        <div class="head">
+            <div class="section-title"><span class="eyebrow">PHẦN CỨNG</span><h3>Thiết bị</h3></div>
+            <span class="seg" role="group" aria-label="Chế độ điều khiển">
+                <button class="btn @(_s?.Mode == "auto" ? "on" : "")" disabled="@(_s is null)" @onclick="() => Mode(true)">Auto</button><button class="btn @(_s?.Mode == "manual" ? "on" : "")" disabled="@(_s is null)" @onclick="() => Mode(false)">Manual</button>
+            </span>
+        </div>
+        @if (_tp is { State: "connecting" }) { <div class="warn">Đang đăng nhập ổ cắm P100...</div> }
+        else if (_tp is not null and not { State: "connected" })
         {
-            <div class="err warn">Ổ cắm chưa kết nối: lệnh sẽ không có tác dụng. Bật Mô phỏng ổ cắm hoặc nối ổ cắm thật.
+            <div class="warn">Ổ cắm P100 chưa đăng nhập. <a href="/setup">Mở Cài đặt</a></div>
+        }
+        else if (_s is not null && !PlugUp)
+        {
+            <div class="err warn">Ổ cắm chưa kết nối: lệnh sẽ không có tác dụng. Kiểm tra P100 trong <a href="/setup">Cài đặt</a> hoặc bật mô phỏng ổ cắm.
                 @if (!Sim.Plug.On) { <button class="btn" @onclick="() => Sim.Plug.Set(true)">Bật mô phỏng ổ cắm</button> }
             </div>
         }
         @foreach (var (id, name) in Devs)
         {
             var on = _s is not null && _s.Devices.TryGetValue(id, out var dv) && dv.On;
-            <div class="devrow">
-                <span>@name: <b>@(on ? "bật" : "tắt")</b></span>
-                <button class="btn @(on ? "on" : "")" disabled="@(_s is null)" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button>
+            <div class="dev">
+                <span class="dot @(PlugUp ? "up" : "down")" title="@(PlugUp ? "Đang kết nối" : "Mất kết nối")"></span>
+                <span class="dev-name"><b>@name</b><small>Tapo P100</small></span>
+                <b>@(on ? "Bật" : "Tắt")</b>
+                <button class="btn @(on ? "on" : "")" disabled="@(_s is null || _s.Mode != "manual")" @onclick="() => Dev(id, !on)">@(on ? "Tắt" : "Bật")</button>
             </div>
+            @if (_s is { Mode: not "manual" }) { <small class="muted">Đang ở chế độ Auto: chuyển sang Manual để bật/tắt bằng tay.</small> }
             @if (_pend is { } pd && pd.Id == id && DateTime.UtcNow - pd.At > TimeSpan.FromSeconds(3) && on != pd.On) { <small class="err">Chưa thấy thiết bị phản hồi</small> }
             @if (Reason(id) is { } rs) { <small class="why">@rs</small> }
+        }
+        @{
+            var env = _s?.Env.Values.FirstOrDefault(); var door = _s?.Door.Values.FirstOrDefault();
+            var esp = _s?.Online.Any(x => x.Key.StartsWith("sensor/") && x.Value) == true;
+        }
+        <div class="dev">
+            <span class="dot @(Up("ai") ? "up" : "down")" title="@(Up("ai") ? "Đang gửi dữ liệu" : "Không có dữ liệu")"></span>
+            <span class="dev-name"><b>Camera</b><small>Tapo C222 4MP</small></span>
+            <b>@(Up("ai") ? "Đang nhận diện" : "Không có dữ liệu")</b>
+        </div>
+        @foreach (var (n, m, v) in new[] {
+            ("Nhiệt độ, độ ẩm", "SHT30", env is null ? "–" : $"{env.TempC:0.#} °C · {env.Humidity:0.#} %"),
+            ("Ánh sáng", "BH1750", env is null ? "–" : $"{env.Lux:0} lux"),
+            ("Cửa", "MC-38", door is null ? "–" : door.Open ? "Mở" : "Đóng") })
+        {
+            <div class="dev">
+                <span class="dot @(esp ? "up" : "down")" title="@(esp ? "ESP32 đang kết nối" : "ESP32 mất kết nối")"></span>
+                <span class="dev-name"><b>@n</b><small>@m · ESP32</small></span>
+                <b>@v</b>
+            </div>
         }
     </section>
 
     <section class="pane log-pane p-lg">
         <div class="head">
-            <h3>Nhật ký</h3>
+            <div class="section-title"><span class="eyebrow">DÒNG THỜI GIAN</span><h3>Nhật ký hoạt động</h3></div>
             <span class="seg">
                 @foreach (var (k, n) in Filters)
                 {
@@ -145,7 +170,7 @@
     </section>
 
     <section class="pane alerts p-al">
-        <h3>Cảnh báo</h3>
+        <span class="eyebrow">AN TOÀN</span><h3>Cảnh báo</h3>
         <div class="scroll">
             @if (_a is null) { <p class="err">Không kết nối được Hub</p> }
             else if (_a.Count == 0) { <p class="muted">Chưa có cảnh báo</p> }
@@ -254,8 +279,8 @@
 </div>
 
 @code {
-    static readonly (string, string)[] Devs = [("light", "Đèn"), ("fan", "Quạt trần")];
-    static readonly (string, string)[] Ovl = [("skeleton", "Khung xương"), ("boxes", "Hộp"), ("labels", "Nhãn"), ("zones", "Vùng")];
+    static readonly (string, string)[] Devs = [("light", "Ổ cắm")];
+    static readonly (string, string)[] Ovl = [("skeleton", "Khung xương"), ("boxes", "Hộp"), ("labels", "Nhãn"), ("zones", "Vùng"), ("sofa_lying", "Cam trên cao: ở sofa coi là nằm")];
     Dictionary<string, bool>? _cfg;
     static readonly (string, string)[] Filters = [("all", "Tất cả"), ("act", "Chỉ hành động"), ("wait", "Chỉ lý do chờ")];
 
@@ -283,8 +308,11 @@
     static readonly (string, string)[] Tabs = [("ov", "Tổng quan"), ("cam", "Camera"), ("lg", "Nhật ký"), ("al", "Cảnh báo"), ("sim", "Mô phỏng")];
     static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
     HubSnapshot? _s;
+    bool PlugUp => _tp is { State: "connected" } || Up("device");
+    bool Up(string k) => _s is not null && _s.Online.TryGetValue(k, out var o) && o;
     List<AlertItem>? _a;
     List<EventItem>? _ev;
+    TapoStatus? _tp;
     bool _unsupported;
     string _flt = "all";
     EspState? _esp;
@@ -344,6 +372,7 @@
         (_ev, _unsupported) = await Hub.Events();
         if (_pend is { } pd && _s is not null && _s.Devices.TryGetValue(pd.Id, out var cur) && cur.On == pd.On) _pend = null;
         _esp = Sim.Esp.On ? await Sim.EspState() : null;
+        _tp = await Hub.Tapo();
     }
 
     async Task SetOvl(string k)
@@ -357,7 +386,7 @@
     async Task Act(Task<bool> call) { _msg = await call ? null : "Gửi lệnh thất bại"; await Refresh(); }
     async Task Send(string id, bool correct) { await Hub.Feedback(id, correct); _a = await Hub.Alerts(); }
     async Task ToggleAi(ChangeEventArgs e) { await Ai.SetEnabled(e.Value is true); }
-    async Task ToggleSim(SmartHomeAI.Dashboard.Services.SimProc p, bool on) { await Task.Run(() => p.Set(on)); if (!on) _esp = null; }
+    async Task ToggleSim(SmartHomeAI.Dashboard.Services.SimProc p, bool on) { if (on && p == Sim.Plug && _tp?.State is "connected" or "connecting") { _msg = "Đang dùng P100 thật, đăng xuất trước khi bật ổ cắm giả"; return; } await Task.Run(() => p.Set(on)); if (!on) _esp = null; }
     async Task Put(string key, object v)
     {
         _msg = await Sim.EspSet(new Dictionary<string, object> { [key] = v }) ? null : "ESP32 giả từ chối giá trị";

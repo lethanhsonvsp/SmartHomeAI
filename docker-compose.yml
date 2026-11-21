@@ -1,4 +1,9 @@
-# Chỉ hạ tầng dev: PostgreSQL + Mosquitto. Hub và AI chạy bằng systemd (xem infra/systemd).
+# Hạ tầng dev: PostgreSQL + Mosquitto. Chạy nền (restart: unless-stopped): tắt Dashboard/Hub không làm dừng
+# container; chỉ dừng khi tự chạy `docker compose stop` hoặc `down`. Docker bật cùng máy (systemctl enable docker) thì tự lên lại.
+# Cả hệ thống: docker compose up -d --build, mở http://localhost:5037. Máy chỉ cần Docker.
+# dashboard = giao diện + AI camera + mô phỏng (Dashboard bật/tắt chúng như tiến trình con); hub = Hub + cầu nối P100.
+# Dev vẫn dùng được `dotnet run` Dashboard trên máy: dừng container dashboard trước (docker compose stop dashboard).
+# Bảng PostgreSQL do Hub tự tạo khi khởi động (infra/sql/*.sql).
 services:
   postgres:
     image: postgres:17
@@ -6,8 +11,12 @@ services:
       POSTGRES_DB: smarthome
       POSTGRES_USER: smarthome
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smarthome_dev}
-    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smarthome -d smarthome"]
+      interval: 5s
+      retries: 12
     restart: unless-stopped
   mosquitto:
     image: eclipse-mosquitto:2
@@ -15,6 +24,40 @@ services:
     volumes:
       - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mqttdata:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 3 >/dev/null"]
+      interval: 10s
+      retries: 6
+    restart: unless-stopped
+  hub:
+    build: { context: ., dockerfile: src/SmartHomeAI.Hub/Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+      mosquitto: { condition: service_healthy }
+    environment:
+      # Development: Mosquitto dev ở trên cho kết nối ẩn danh, chưa có khóa API. Chỉ nghe loopback ở máy chủ.
+      ASPNETCORE_ENVIRONMENT: Development
+      Mqtt__Host: mosquitto
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=smarthome;Username=smarthome;Password=${POSTGRES_PASSWORD:-smarthome_dev}"
+    ports: ["127.0.0.1:5002:5002"]
+    volumes: [hubdata:/app/data]
+    restart: unless-stopped
+  dashboard:
+    build:
+      context: .
+      dockerfile: src/SmartHomeAI.Dashboard/Dockerfile
+      args: { AI_MODELS: "${AI_MODELS:-yolov8m-pose}" }
+    depends_on:
+      hub: { condition: service_healthy }
+    environment:
+      Hub__BaseUrl: http://hub:5002
+      Hub__UsePostgres: "false"        # hạ tầng do compose lo, Dashboard không tự gọi docker
+      Startup__StartMosquitto: "false"
+      Ai__Host: mosquitto
+      Ai__Source: "${AI_SOURCE:-0}"    # rtsp://user:pass@IP:554/stream2 trong .env
+      SMARTHOME_MQTT_HOST: mosquitto   # sim (ESP32/ổ cắm giả, kịch bản)
+    ports: ["${DASHBOARD_PORT:-5037}:5037", "8090:8090"]   # giao diện + luồng camera MJPEG
+    volumes: [aiconfig:/repo/ai/config]
     restart: unless-stopped
   # Bản bảo mật: docker compose --profile secure up -d mosquitto-secure (sau khi chạy infra/mosquitto/make-passwd.sh)
   mosquitto-secure:
@@ -28,6 +71,8 @@ services:
       - mqttdata-secure:/mosquitto/data
     restart: unless-stopped
 volumes:
+  aiconfig:
+  hubdata:
   pgdata:
   mqttdata:
   mqttdata-secure:

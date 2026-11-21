@@ -22,6 +22,7 @@ public record PersonPt(DateTimeOffset Ts, int Count);
 public record EspState(double TempC, double Humidity, double Lux, bool DoorOpen, bool Buzzer);
 // Hub /api/events (camelCase): kind auto|wait|manual|device|alert|occupancy; Message đã định dạng tiếng Việt.
 public record EventItem(DateTimeOffset Ts, string Kind, string? Device, bool? On, string Message);
+public record TapoStatus(string State, string? Error, string? Host = null);
 public record History(List<EnvPt> Env, List<OccPt> Occupancy, List<PersonPt> Persons);
 
 /// <summary>Server-side client for the Hub REST API; null/false results mean Hub unreachable or failed.</summary>
@@ -55,5 +56,8 @@ public class HubClient(HttpClient http)
     }
     public Task<bool> SetMode(bool auto) => Post("/api/mode", new { auto });
     public Task<bool> SetDevice(string id, bool on) => Post($"/api/device/{id}", new { on });
+    public Task<TapoStatus?> Tapo() => Get<TapoStatus>("/api/tapo");
+    public Task<bool> TapoLogin(string user, string password, string host) => Post("/api/tapo/login", new { user, password, host });
+    public Task<bool> TapoLogout() => Post("/api/tapo/logout", new { });
     public Task<bool> Feedback(string id, bool correct) => Post($"/api/alerts/{Uri.EscapeDataString(id)}/feedback", new { correct });
 }

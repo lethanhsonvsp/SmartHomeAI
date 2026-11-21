@@ -27,12 +27,12 @@ Xem tin: `mosquitto_sub -t 'home/ai/#' -v`.
 Cùng tiến trình mở HTTP ở `--stream-port` (mặc định 8090, `0` = tắt): `GET /stream.mjpg` (multipart/x-mixed-replace, ~8 fps), `GET /snapshot.jpg`, kèm `Access-Control-Allow-Origin: *`; nhúng bằng `<img src="http://host:8090/stream.mjpg">`. Khung có vùng (tô nhạt), hộp, xương COCO-17, `#track_id posture conf [zone]` (chữ ASCII). Chưa có khung hoặc camera mất >5 s thì trả ảnh "Dang cho camera". Server nghe 0.0.0.0, không xác thực: chỉ dùng trong LAN.
 
 ### API cấu hình (cùng cổng, CORS GET/POST/PUT/OPTIONS, thân tối đa 64 KB)
-- `GET /config` -> `{"skeleton":true,"boxes":true,"zones":true,"labels":true}`; `POST /config` nhận một phần các khóa đó (bool; khóa lạ/sai kiểu = 400), đổi lớp phủ stream + snapshot ngay, trả config mới. `--no-skeleton` đặt mặc định ban đầu.
+- `GET /config` -> `{"skeleton":true,"boxes":true,"zones":true,"labels":true,"sofa_lying":false}`; `POST /config` nhận một phần các khóa đó (bool; khóa lạ/sai kiểu = 400), đổi lớp phủ stream + snapshot ngay, trả config mới. `--no-skeleton` đặt mặc định ban đầu. `sofa_lying` (mặc định theo `--sofa-lying`): cam soi từ trên cao, người đứng yên có tâm hộp trong vùng sofa thì coi là `lying`.
 - `GET /frame.jpg`: khung mới nhất KHÔNG lớp phủ (nền cho trình vẽ vùng; ảnh chờ nếu chưa có khung), `Cache-Control: no-store`.
 - `GET /zones` -> `{"zones": {...}}` (định dạng như `zones.example.json`); `PUT /zones` cùng định dạng: chỉ tên `livingroom, sofa, door, other_exit`, bắt buộc `livingroom`, mỗi vùng 3..20 điểm `[x,y]` trong 0..1; sai = 400 kèm `error`, không đổi gì. Hợp lệ thì dùng ngay từ khung kế (giữ tracker) và ghi nguyên tử `zones.json` cạnh tệp `--zones` (hoặc `config/zones.json`). `livingroom` luôn được xếp cuối (ưu tiên thấp nhất); các vùng khác giữ thứ tự gửi. `GET /zones/default` -> vùng ví dụ.
 
 ## Mô hình pose
-`--detector pose` = YOLOv8n-pose ONNX chạy bằng onnxruntime CPU (không torch). Nguồn: https://huggingface.co/Xenova/yolov8n-pose (xuất từ Ultralytics yolov8n-pose). **Giấy phép AGPL-3.0** (Ultralytics): phù hợp đồ án học thuật/nội bộ; nếu phát hành sản phẩm đóng kín phải đổi mô hình hoặc mua giấy phép. Thiếu mô hình thì báo lỗi rõ, dùng `--detector hog` làm dự phòng.
+`--detector pose` = YOLOv8m-pose ONNX chạy bằng onnxruntime CPU (không torch), ngưỡng tin cậy 0.3. `tools/fetch_model.py` tải 4 bản YOLOv8 n/s/m/l cùng YOLO26-pose (n/s/m/l) và RTMO (s/m/l), loại mô hình tự nhận theo đầu ra ONNX; chọn trên Dashboard (trang Cài đặt, đổi là AI khởi động lại, lựa chọn lưu ở `config/model.txt`) hoặc `--model models/<tên>.onnx`. Nguồn: https://huggingface.co/Xenova/yolov8m-pose và các bản n/s/l cùng chỗ (xuất từ Ultralytics). Số đo so sánh: [docs/nhat-ky-camera-tapo.md](../docs/nhat-ky-camera-tapo.md). **Giấy phép AGPL-3.0** (Ultralytics): phù hợp đồ án học thuật/nội bộ; nếu phát hành sản phẩm đóng kín phải đổi mô hình hoặc mua giấy phép. Thiếu mô hình thì báo lỗi rõ, dùng `--detector hog` làm dự phòng.
 
 ## Quyết định và giới hạn
 - Detector mặc định vẫn là HOG của OpenCV (không thêm phụ thuộc nặng; ultralytics kéo torch cỡ GB). Kém YOLO, nhất là người nằm. Cắm detector khác qua giao diện `Detector.detect(frame) -> [Detection]` (hộp chuẩn hóa, keypoints COCO-17 tùy chọn).
@@ -46,3 +46,7 @@ Cùng tiến trình mở HTTP ở `--stream-port` (mặc định 8090, `0` = t�
 
 ## Chạy từ gốc repo
 `ai/run.sh --source 0 --detector pose --zones ai/config/zones.example.json --host localhost --stream-port 8090` (đặt PYTHONPATH giúp; chạy `python -m smarthome_ai` trực tiếp từ gốc repo sẽ báo "No module named smarthome_ai").
+
+.venv/bin/python test_p100.py --control off
+
+.venv/bin/python test_p100.py --control on

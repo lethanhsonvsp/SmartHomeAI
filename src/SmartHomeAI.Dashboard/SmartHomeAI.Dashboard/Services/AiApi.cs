@@ -31,6 +31,15 @@ public class AiApi(IConfiguration cfg)
     public async Task<bool> SetConfig(string key, bool v) =>
         (await Call(HttpMethod.Post, "/config", Encoding.UTF8.GetBytes($"{{\"{key}\":{(v ? "true" : "false")}}}"))).Status == 200;
 
+    /// <summary>Trạng thái mẫu tư thế; label khác null thì gửi lệnh trước (standing|sitting|lying để ghi, clear để xóa hết); delete là id mẫu cần bỏ.</summary>
+    public async Task<PostureStatus?> Posture(string? label = null, string? delete = null)
+    {
+        if (delete is not null && !delete.All(char.IsAsciiDigit)) return null; // id do AI cấp, chỉ gồm chữ số
+        var json = delete is not null ? $"{{\"delete\":\"{delete}\"}}" : label is not null ? $"{{\"label\":\"{label}\"}}" : null;
+        var (s, b, _) = json is null ? await Call(HttpMethod.Get, "/posture") : await Call(HttpMethod.Post, "/posture", Encoding.UTF8.GetBytes(json));
+        return s == 200 ? System.Text.Json.JsonSerializer.Deserialize<PostureStatus>(b, System.Text.Json.JsonSerializerOptions.Web) : null;
+    }
+
     public static void Map(WebApplication app)
     {
         async Task<IResult> Go(AiApi ai, HttpMethod m, string path, HttpRequest? rq = null)
@@ -55,6 +64,9 @@ public class AiApi(IConfiguration cfg)
         });
     }
 }
+
+public record PostureCapture(string Label, int Left, int Wait);
+public record PostureStatus(Dictionary<string, int> Counts, bool Trained, PostureCapture? Capture, Dictionary<string, string[]>? Samples = null);
 
 static class ResultExt
 {

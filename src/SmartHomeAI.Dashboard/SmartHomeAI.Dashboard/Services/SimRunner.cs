@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 namespace SmartHomeAI.Dashboard.Services;
 
 /// <summary>Một tiến trình mô phỏng (ESP32 hoặc ổ cắm); lệnh lấy từ cấu hình Sim:*, không nhận từ trình duyệt.</summary>
-public class SimProc(string args, string root, string python)
+public class SimProc(string args, string root, string python, bool disabled = false)
 {
     Process? _p;
     readonly object _l = new();
@@ -16,6 +16,7 @@ public class SimProc(string args, string root, string python)
         lock (_l)
         {
             if (!on) { if (_p is { } p) Repo.Stop(p, 3000); _p = null; Error = null; return; }
+            if (disabled) { Error = "P100 mô phỏng bị khóa khi dùng thiết bị thật"; return; }
             if (On) return;
             try
             {
@@ -40,12 +41,13 @@ public class SimRunner : IHostedService
     public SimRunner(IConfiguration cfg)
     {
         string C(string k, string d) => cfg["Sim:" + k] is { Length: > 0 } v ? v : d;
-        _autoPlug = cfg.GetValue("Sim:AutoStartPlug", true); _autoEsp = cfg.GetValue("Sim:AutoStartEsp", false);
+        var realPlug = cfg.GetValue("TapoP100:Enabled", false);
+        _autoPlug = !realPlug && cfg.GetValue("Sim:AutoStartPlug", true); _autoEsp = cfg.GetValue("Sim:AutoStartEsp", false);
         var root = Repo.Root(cfg);
         var py = C("Python", "sim/.venv/bin/python");
         _http.BaseAddress = new Uri($"http://127.0.0.1:{C("EspControlPort", "8091")}");
         Esp = new SimProc(C("EspArgs", "-m sim esp --control-port 8091"), root, py);
-        Plug = new SimProc(C("PlugArgs", "-m sim p100"), root, py);
+        Plug = new SimProc(C("PlugArgs", "-m sim p100"), root, py, realPlug);
     }
 
     public Task StartAsync(CancellationToken ct)

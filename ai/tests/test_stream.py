@@ -108,7 +108,7 @@ def test_config_frame_zones_api(tmp_path):
     try:
         b = f"http://127.0.0.1:{srv.port}"
         # config
-        assert json.loads(call(b, "/config")[2]) == {"skeleton": True, "boxes": True, "zones": True, "labels": True}
+        assert json.loads(call(b, "/config")[2]) == {"skeleton": True, "boxes": True, "zones": True, "labels": True, "sofa_lying": False}
         s, h, body = call(b, "/config", "POST", {"skeleton": False})
         assert s == 200 and json.loads(body)["skeleton"] is False and h["Access-Control-Allow-Origin"] == "*"
         for bad in ({"foo": True}, {"boxes": "yes"}, {"boxes": 1}, [1]):
@@ -152,5 +152,55 @@ def test_config_frame_zones_api(tmp_path):
         assert zn.polys == before and zp.read_text() == disk
         # mặc định
         assert "sofa" in json.loads(call(b, "/zones/default")[2])["zones"]
+    finally:
+        srv.close()
+
+
+def test_posture_samples(tmp_path):
+    k = lambda x, y: (x, y, 0.9)
+    sit = kp17(k0=k(.5, .4), k5=k(.45, .45), k6=k(.55, .45), k11=k(.46, .55), k12=k(.54, .55), k15=k(.5, .6), k16=k(.52, .6))
+    lie = kp17(k0=k(.2, .3), k5=k(.3, .35), k6=k(.3, .4), k11=k(.5, .45), k12=k(.5, .5), k15=k(.8, .7), k16=k(.8, .72))
+    box = (0.3, 0.1, 0.6, 0.9)
+    s = posture.Samples(tmp_path / "posture-samples.json")
+    assert not s.trained and posture.classify(box, 0, 1, lie, s) == posture.classify(box, 0, 1, lie)  # chưa đủ mẫu: dùng quy tắc
+    for _ in range(posture.MIN_SAMPLES):
+        s.add("sitting", posture.features(sit, 1))
+        s.add("lying", posture.features(lie, 1))
+    s.save()
+    s = posture.Samples(s.path)  # đọc lại từ tệp
+    assert s.trained and s.counts() == {"standing": 0, "sitting": 5, "lying": 5}
+    moved = [(x + .1, y + .05, c) for x, y, c in lie]  # cùng tư thế, khác vị trí
+    assert [posture.classify(box, 0, 1, x, s) for x in (sit, lie, moved)] == ["sitting", "lying", "lying"]
+    assert posture.classify(box, 2.0, 1, sit, s) == "moving" and posture.features(None) is None
+
+
+def test_posture_capture_api(tmp_path):
+    srv = StreamServer(0, host="127.0.0.1", zones_path=tmp_path / "zones.json")
+    try:
+        import urllib.request
+        def post(label):
+            rq = urllib.request.Request(f"http://127.0.0.1:{srv.port}/posture", json.dumps({"label": label}).encode(), {"Content-Type": "application/json"})
+            return json.loads(urllib.request.urlopen(rq).read())
+        assert post("lying")["capture"]["label"] == "lying" and srv.capture["left"] > 0
+        # ảnh xem lại + xóa từng mẫu
+        srv.samples.add("lying", [0.1] * 34, srv.thumb(np.full((90, 160, 3), 90, np.uint8), (0.2, 0.2, 0.6, 0.9), kp17()))
+        sid = srv.samples.ids()["lying"][0]
+        b = f"http://127.0.0.1:{srv.port}"
+        assert urllib.request.urlopen(f"{b}/posture/img/{sid}.jpg").read(2) == b"\xff\xd8"
+        for bad in ("../zones", "123456"):
+            try:
+                urllib.request.urlopen(f"{b}/posture/img/{bad}.jpg")
+                assert False, "phải trả 404"
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+        rq = urllib.request.Request(b + "/posture", json.dumps({"delete": sid}).encode(), {"Content-Type": "application/json"})
+        assert json.loads(urllib.request.urlopen(rq).read())["samples"]["lying"] == [] and not list((tmp_path / "posture-samples").glob("*.jpg"))
+        st = post("clear")
+        assert st["counts"] == {"standing": 0, "sitting": 0, "lying": 0} and st["capture"] is None and not st["trained"]
+        try:
+            post("flying")
+            assert False, "phải trả 400"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
     finally:
         srv.close()

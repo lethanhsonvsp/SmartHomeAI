@@ -11,3 +11,10 @@ infra/mosquitto/passwd
 infra/mosquitto/acl
 src/SmartHomeAI.Hub/data/
 data/manual.json
+
+.tapo-p100-credentials
+.tapo-p100-credentials.*
+firmware/esp32/include/secrets.h
+.pio/
+ai/config/posture-samples*
+appsettings.Local.json
