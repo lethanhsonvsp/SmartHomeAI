@@ -88,7 +88,7 @@
                         var kk = k;
                         <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="() => Teach(kk)">Ghi @n</button>
                     }
-                    <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="@(() => Teach("clear"))">Xóa hết</button>
+                    <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="@(() => Teach("clear"))">Xóa tất cả</button>
                 </div>
                 @if (_ps.Capture is { } c)
                 {
@@ -101,7 +101,11 @@
                 {
                     var ids = _ps.Samples?.GetValueOrDefault(k) ?? [];
                     @if (ids.Length == 0) { continue; }
-                    <small><b>@n</b>: @ids.Length mẫu. Bấm ✕ để bỏ ảnh sai tư thế hoặc khung xương lệch.</small>
+                    var kk = k;
+                    <div class="devrow">
+                        <small><b>@n</b>: @ids.Length mẫu. Bấm ✕ để bỏ ảnh sai tư thế hoặc khung xương lệch.</small>
+                        <button class="btn" disabled="@(_ps.Capture is not null)" @onclick="() => ClearOf(kk)">Xóa tất cả mẫu @n</button>
+                    </div>
                     <div class="teach-grid">
                         @foreach (var id in ids)
                         {
@@ -130,6 +134,7 @@
 
     // Trình duyệt lấy ảnh thẳng từ cổng AI, như luồng camera ở Dashboard
     string Cam => (Cfg["Camera:StreamUrl"] ?? "http://localhost:8090/stream.mjpg").Replace("/stream.mjpg", "").Replace("localhost", new Uri(Nav.Uri).Host);
+    async Task ClearOf(string label) => _ps = await AiApi.Posture(clearOf: label) ?? _ps;
     async Task Drop(string id) => _ps = await AiApi.Posture(delete: id) ?? _ps;
 
     bool AiOn => Ai.State is SmartHomeAI.Dashboard.Services.AiState.Running or SmartHomeAI.Dashboard.Services.AiState.Starting;

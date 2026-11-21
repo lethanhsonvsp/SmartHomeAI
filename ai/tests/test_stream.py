@@ -195,6 +195,10 @@ def test_posture_capture_api(tmp_path):
                 assert e.code == 404
         rq = urllib.request.Request(b + "/posture", json.dumps({"delete": sid}).encode(), {"Content-Type": "application/json"})
         assert json.loads(urllib.request.urlopen(rq).read())["samples"]["lying"] == [] and not list((tmp_path / "posture-samples").glob("*.jpg"))
+        srv.samples.add("lying", [0.1] * 34)
+        srv.samples.add("sitting", [0.2] * 34)
+        rq = urllib.request.Request(b + "/posture", json.dumps({"label": "clear", "of": "lying"}).encode(), {"Content-Type": "application/json"})
+        assert json.loads(urllib.request.urlopen(rq).read())["counts"] == {"standing": 0, "sitting": 1, "lying": 0}
         st = post("clear")
         assert st["counts"] == {"standing": 0, "sitting": 0, "lying": 0} and st["capture"] is None and not st["trained"]
         try:

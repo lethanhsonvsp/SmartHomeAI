@@ -154,9 +154,12 @@ class StreamServer:
                     label = body.get("label") if isinstance(body, dict) else None
                     if isinstance(body, dict) and "delete" in body:  # {"delete": id} bỏ một mẫu đã ghi
                         owner.samples.remove(str(body["delete"]))
-                    elif label == "clear":
+                    elif label == "clear":  # kèm "of": tư thế thì chỉ xóa mẫu của tư thế đó
+                        of = body.get("of")
+                        if of is not None and of not in LABELS:
+                            return self._json({"error": f"of phải là một trong {list(LABELS)}"}, 400)
                         owner.capture = None
-                        owner.samples.clear()
+                        owner.samples.clear(of)
                     elif label in LABELS:
                         owner.capture = {"label": label, "start": time.time() + CAPTURE_DELAY, "left": CAPTURE_FRAMES, "gap": CAPTURE_GAP}
                     else:

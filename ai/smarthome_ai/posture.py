@@ -101,11 +101,12 @@ class Samples:
             (self.dir / f"{sid}.jpg").unlink(missing_ok=True)
         self.save()
 
-    def clear(self):
-        for sid in [i for v in self.ids().values() for i in v]:
-            if self.dir:
-                (self.dir / f"{sid}.jpg").unlink(missing_ok=True)
-        self.items = {}
+    def clear(self, label=None):
+        """Xóa mọi mẫu, hoặc chỉ mẫu của một tư thế."""
+        for lab in [label] if label else list(self.items):
+            for e in self.items.pop(lab, []):
+                if self.dir:
+                    (self.dir / f"{e['id']}.jpg").unlink(missing_ok=True)
         self.save()
 
     def save(self):
